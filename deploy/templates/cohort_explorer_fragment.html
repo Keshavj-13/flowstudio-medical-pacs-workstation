@@ -1,0 +1,32 @@
+<!-- Server Explorer Dynamic Fragment -->
+<div class="explorer-cohort-list" id="cohort-explorer-list" style="display: flex; flex-direction: column; gap: 6px; padding: 6px 0;">
+  {% for c in cohorts %}
+  <div class="cohort-explorer-card" style="background: rgba(12, 17, 28, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #fff;">Cohort #{{ c.cohort_id }}</span>
+        {% if c.has_gt %}
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.3);">
+          GT Mask Verified
+        </span>
+        {% endif %}
+      </div>
+      <button class="dock-btn btn-mount-cohort"
+              hx-post="/cases/yunnan_{{ c.cohort_id }}/select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML"
+              style="background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35); padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: var(--radius-xs);">
+        Mount
+      </button>
+    </div>
+    <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+      {{ c.path }}
+    </div>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px;">
+      <span class="file-chip" style="font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.05); border-radius: 2px; color: var(--text-secondary);">896×896×120</span>
+      <span class="file-chip" style="font-size: 9px; padding: 1px 4px; background: rgba(0,240,255,0.08); border-radius: 2px; color: var(--clinical-cyan);">DCE (P1-P5)</span>
+      <span class="file-chip" style="font-size: 9px; padding: 1px 4px; background: rgba(52,211,153,0.08); border-radius: 2px; color: var(--clinical-emerald);">{{ c.file_count }} Volumes</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>

@@ -1,0 +1,202 @@
+<div class="case-viewer-container" id="case-viewer-container">
+  <!-- Top Floating Clinical HUD -->
+  <div class="canvas-hud-top">
+    <div class="hud-pill-group">
+      <div class="hud-pill">
+        <span class="label">Patient / Scan:</span>
+        <span class="val" style="color: #fff;">{{ case.name }}</span>
+      </div>
+      <div class="hud-pill">
+        <span class="label">Modality:</span>
+        <span class="val">DCE-MRI (5-Phase)</span>
+      </div>
+      <div class="hud-pill">
+        <span class="label">Matrix:</span>
+        <span class="val">{{ case.shape_xyz[0] }}×{{ case.shape_xyz[1] }}×{{ case.shape_xyz[2] }}</span>
+      </div>
+      <div class="hud-pill">
+        <span class="label">Slice:</span>
+        <span class="val" id="top-slice-pill">Z = {{ case.initial_slice }} / {{ case.shape_xyz[2] - 1 }}</span>
+      </div>
+    </div>
+
+    <!-- Start AI Diagnostic Scan Button & Mask Controls -->
+    <div class="hud-pill-group">
+      <button class="dock-btn" id="btn-contour-toggle" onclick="toggleContour(this)">
+        Contour: <span id="contour-state-label">OFF</span>
+      </button>
+      <button class="dock-btn" id="btn-overlay-toggle" onclick="toggleOverlay(this)">
+        Mask: <span id="overlay-state-label" style="color: var(--text-muted);">OFF</span>
+      </button>
+
+      <select id="model-select" name="model_type" class="dock-btn" style="background: rgba(12,17,28,0.85); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: var(--radius-pill); color: var(--text-primary); font-size: 11px;">
+        <option value="qwen_nuclear_vlm" selected>Backbone: Qwen3.5 Multimodal VLM</option>
+        <option value="flexible_unet">Backbone: FlexibleUNet Baseline</option>
+      </select>
+
+      <button class="btn-start-scan" id="start-scan-btn"
+              hx-post="/cases/{{ case.case_id }}/scan"
+              hx-include="#model-select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML">
+        <span>Scan</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Central Canvas Viewer Area -->
+  <div class="viewer-canvas-area" id="viewer-canvas-area">
+    <div class="dicom-image-wrapper">
+      <img id="dicom-slice-img"
+           class="dicom-slice-img"
+           src="/cases/{{ case.case_id }}/slice?plane=axial&index={{ case.initial_slice }}&overlay=0&lut=default"
+           alt="DCE-MRI Slice" />
+    </div>
+  </div>
+
+  <!-- Bottom Radiological Floating Dock -->
+  <div class="radiological-dock">
+    <!-- Slice Slider -->
+    <div class="dock-slider-wrap">
+      <span style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Slice</span>
+      <input type="range" id="slice-slider" class="dock-slider"
+             min="0" max="{{ case.shape_xyz[2] - 1 }}" value="{{ case.initial_slice }}"
+             oninput="updateSlice(this.value)" />
+      <span class="dock-slice-readout" id="slice-index-label">Z: {{ case.initial_slice }}</span>
+    </div>
+
+    <div class="dock-divider"></div>
+
+    <!-- Plane Selection -->
+    <div class="dock-group">
+      <button class="dock-btn active" id="plane-axial" onclick="setPlane('axial')">Axial</button>
+      <button class="dock-btn" id="plane-coronal" onclick="setPlane('coronal')">Coronal</button>
+      <button class="dock-btn" id="plane-sagittal" onclick="setPlane('sagittal')">Sagittal</button>
+    </div>
+
+    <div class="dock-divider"></div>
+
+    <!-- Window / Level Presets -->
+    <div class="dock-group">
+      <button class="dock-btn active" onclick="setWL(350, 180, this)" title="Window: 350, Level: 180">Breast DCE</button>
+      <button class="dock-btn" onclick="setWL(500, 250, this)" title="Window: 500, Level: 250">Parenchyma</button>
+      <button class="dock-btn" onclick="setWL(1000, 400, this)" title="Window: 1000, Level: 400">Bone</button>
+      <button class="dock-btn" onclick="setWL(400, 200, this)" title="Window: 400, Level: 200">Soft Tissue</button>
+    </div>
+
+    <div class="dock-divider"></div>
+
+    <!-- Colormap LUT Selector -->
+    <div class="dock-group">
+      <button class="dock-btn active" onclick="setLUT('default', this)">Default</button>
+      <button class="dock-btn" onclick="setLUT('cyan_hot', this)">Cyan Hot</button>
+      <button class="dock-btn" onclick="setLUT('turbo', this)">Turbo</button>
+      <button class="dock-btn" onclick="setLUT('viridis', this)">Viridis</button>
+      <button class="dock-btn" onclick="setLUT('inferno', this)">Inferno</button>
+      <button class="dock-btn" onclick="setLUT('invert', this)">Invert</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  currentCaseId = "{{ case.case_id }}";
+  currentPlane = "axial";
+  currentSlice = {{ case.initial_slice }};
+  currentOverlay = 0;
+  currentLUT = "default";
+  currentWC = null;
+  currentWW = null;
+  currentContour = 0;
+
+  // Auto-dismiss cohort island when patient scan loads to give edge-to-edge canvas
+  const cohortIsland = document.getElementById("cohort-sidebar");
+  if (cohortIsland && !cohortIsland.classList.contains("collapsed")) {
+    cohortIsland.classList.add("collapsed");
+    const sbLabel = document.getElementById("sidebar-toggle-label");
+    if (sbLabel) sbLabel.innerText = "Cohorts";
+  }
+
+  function toggleOverlay(btn) {
+    currentOverlay = currentOverlay === 1 ? 0 : 1;
+    const label = document.getElementById("overlay-state-label");
+    if (label) {
+      label.innerText = currentOverlay === 1 ? "ON" : "OFF";
+      label.style.color = currentOverlay === 1 ? "var(--clinical-emerald)" : "var(--text-muted)";
+    }
+    if (btn) btn.classList.toggle("active", currentOverlay === 1);
+    refreshSliceImg();
+  }
+
+  function toggleContour(btn) {
+    currentContour = currentContour === 1 ? 0 : 1;
+    const label = document.getElementById("contour-state-label");
+    if (label) {
+      label.innerText = currentContour === 1 ? "ON" : "OFF";
+      label.style.color = currentContour === 1 ? "var(--clinical-cyan)" : "var(--text-muted)";
+    }
+    if (btn) btn.classList.toggle("active", currentContour === 1);
+    refreshSliceImg();
+  }
+
+  function refreshSliceImg() {
+    const img = document.getElementById("dicom-slice-img");
+    if (!img) return;
+    let url = `/cases/${currentCaseId}/slice?plane=${currentPlane}&index=${currentSlice}&overlay=${currentOverlay}&lut=${currentLUT}&contour=${currentContour}`;
+    if (currentWC !== null && currentWW !== null) {
+      url += `&window_center=${currentWC}&window_width=${currentWW}`;
+    }
+    img.src = url;
+    document.getElementById("slice-index-label").innerText = `Z: ${currentSlice}`;
+    const pill = document.getElementById("top-slice-pill");
+    if (pill) pill.innerText = `Z = ${currentSlice} / {{ case.shape_xyz[2] - 1 }}`;
+  }
+
+  function updateSlice(val) {
+    currentSlice = parseInt(val);
+    refreshSliceImg();
+  }
+
+  function setPlane(plane) {
+    currentPlane = plane;
+    document.querySelectorAll("[id^=plane-]").forEach(b => b.classList.remove("active"));
+    document.getElementById(`plane-${plane}`).classList.add("active");
+    const slider = document.getElementById("slice-slider");
+    if (plane === "axial") slider.max = {{ case.shape_xyz[2] - 1 }};
+    else if (plane === "coronal") slider.max = {{ case.shape_xyz[1] - 1 }};
+    else if (plane === "sagittal") slider.max = {{ case.shape_xyz[0] - 1 }};
+    currentSlice = Math.floor(slider.max / 2);
+    slider.value = currentSlice;
+    refreshSliceImg();
+  }
+
+  function setWL(w, l, btn) {
+    currentWW = w;
+    currentWC = l;
+    btn.parentNode.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    refreshSliceImg();
+  }
+
+  function setLUT(lut, btn) {
+    currentLUT = lut;
+    btn.parentNode.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    refreshSliceImg();
+  }
+
+  // Mousewheel slice scrolling
+  const viewerArea = document.getElementById("viewer-canvas-area");
+  if (viewerArea) {
+    viewerArea.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const slider = document.getElementById("slice-slider");
+      if (!slider) return;
+      const step = e.deltaY < 0 ? 1 : -1;
+      const nextVal = Math.min(parseInt(slider.max), Math.max(parseInt(slider.min), parseInt(slider.value) + step));
+      if (nextVal !== parseInt(slider.value)) {
+        slider.value = nextVal;
+        updateSlice(nextVal);
+      }
+    }, { passive: false });
+  }
+</script>

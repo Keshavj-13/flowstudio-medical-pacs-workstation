@@ -1,0 +1,36 @@
+# Python & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.env
+.venv
+env/
+venv/
+
+# Large Model Checkpoints
+*.pth
+*.pt
+*.safetensors
+*.bin
+*.ckpt
+
+# Protected Clinical Data & Scans (Strict Zero PHI)
+*.dcm
+*.DCM
+dataset/
+tcia/
+mama_mia*
+dataset*/
+clinical_data/
+DICOM/
+dicom/
+
+# Logs & Ephemeral Uploads
+logs/
+*.log
+jobs/upload_*
+jobs/custom_*
+.ipynb_checkpoints/
+*.zip
+*.tar.gz

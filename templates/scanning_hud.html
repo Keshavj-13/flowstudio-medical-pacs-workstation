@@ -1,0 +1,104 @@
+<div class="case-viewer-container" id="case-viewer-container">
+  <!-- Top Floating Clinical HUD -->
+  <div class="canvas-hud-top">
+    <div class="hud-pill-group">
+      <div class="hud-pill">
+        <span class="label">Scanning Examination:</span>
+        <span class="val" style="color: #fff;">{{ case.name }}</span>
+      </div>
+      <div class="hud-pill">
+        <span class="label">Backbone:</span>
+        <span class="val" style="color: var(--clinical-cyan);">{{ model_name }}</span>
+      </div>
+      <div class="hud-pill">
+        <span class="label">Processing Status:</span>
+        <span class="val" style="color: var(--clinical-emerald);">Active Tensor Sweep</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Central Canvas with Real-Time Image Processing and Scanning Sweep -->
+  <div class="viewer-canvas-area" id="viewer-canvas-area" style="position: relative;">
+    <div class="dicom-image-wrapper" style="position: relative; overflow: hidden;">
+      <img id="dicom-slice-img"
+           class="dicom-slice-img processing-active"
+           src="/cases/{{ case.case_id }}/slice?plane=axial&index={{ case.initial_slice }}&overlay=0&lut=default"
+           alt="DCE-MRI Slice" />
+      <!-- Real-Time Convolution Beam Sweep -->
+      <div class="img-processing-sweep"></div>
+      <div class="img-processing-grid-overlay"></div>
+    </div>
+
+    <!-- The Laser Scanline Sweep & Holographic Telemetry HUD -->
+    <div class="scanning-overlay">
+      <div class="scan-laser-line"></div>
+      <div class="scan-hologram-mesh"></div>
+
+      <div class="scanning-status-card" id="scanning-status-card">
+        <div class="scanning-header">
+          <div class="scanning-title-group">
+            <div class="pulse-spinner"></div>
+            <span class="scanning-title">Volumetric AI Neural Processing & Feature Extraction</span>
+          </div>
+          <span style="font-size: 11px; font-family: var(--font-mono); color: var(--clinical-cyan);" id="scan-ms-ticker">T+ 48ms</span>
+        </div>
+
+        <div class="scanning-steps">
+          <div class="step-row done">
+            <div class="step-icon" style="color: var(--clinical-emerald); font-weight: 700; font-size: 9px; border: 1px solid var(--clinical-emerald); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">1</div>
+            <span class="step-text">5-Phase Contrast Perfusion Registration (P1 &rarr; P5)</span>
+          </div>
+          <div class="step-row active">
+            <div class="step-icon" style="width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">
+              <div class="pulse-spinner" style="width: 10px; height: 10px; border-width: 1.5px;"></div>
+            </div>
+            <span class="step-text">Image Processing: Convolutional Gradient & Spatial-Kinetic Filter Pass</span>
+          </div>
+          <div class="step-row pending">
+            <div class="step-icon" style="color: var(--text-muted); font-size: 9px; border: 1px solid var(--glass-border); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">3</div>
+            <span class="step-text">Qwen3.5 Causal Cross-Attention & Depth Interval Regression</span>
+          </div>
+          <div class="step-row pending">
+            <div class="step-icon" style="color: var(--text-muted); font-size: 9px; border: 1px solid var(--glass-border); border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;">4</div>
+            <span class="step-text">Tri-Planar Consensus 3D Visual Hull Mesh Construction</span>
+          </div>
+        </div>
+
+        <div class="scan-progress-bar-wrap">
+          <div class="scan-progress-bar"></div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted);">
+          <span>Extracting microvascular permeability tokens...</span>
+          <span style="font-family: var(--font-mono); color: var(--clinical-cyan);">CUDA FP16 Tensor Cores</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HTMX Auto-Poller to Check Inference Status and transition to Diagnostic Dossier -->
+  <div hx-get="/cases/{{ case.case_id }}/scan-status?model_type={{ model_type }}"
+       hx-trigger="load delay:750ms"
+       hx-target="#main-stage"
+       hx-swap="innerHTML">
+  </div>
+</div>
+
+<script>
+  // Dismiss cohort drawer when scan is actively executing
+  const cohortIsland = document.getElementById("cohort-sidebar");
+  if (cohortIsland && !cohortIsland.classList.contains("collapsed")) {
+    cohortIsland.classList.add("collapsed");
+    const sbLabel = document.getElementById("sidebar-toggle-label");
+    if (sbLabel) sbLabel.innerText = "Cohorts";
+  }
+
+  // Live millisecond ticker
+  let elapsedMs = 12;
+  const tickerEl = document.getElementById("scan-ms-ticker");
+  const timer = setInterval(() => {
+    elapsedMs += 31;
+    if (tickerEl) tickerEl.innerText = "T+ " + elapsedMs + "ms";
+  }, 30);
+  setTimeout(() => clearInterval(timer), 800);
+</script>

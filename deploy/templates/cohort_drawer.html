@@ -1,0 +1,119 @@
+<div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+  <div style="display: flex; align-items: center; gap: 6px;">
+    <span class="sidebar-title">Clinical Data & Ingestion</span>
+    <span class="brand-badge" style="background: rgba(16,185,129,0.15); color: var(--clinical-emerald); border-color: rgba(16,185,129,0.3);">ZERO PHI • OPEN BENCHMARK</span>
+  </div>
+  <button type="button" class="island-ctrl-btn" onclick="toggleSidebar()" title="Close Cohort Island" style="padding: 2px 6px; font-size: 12px;">&times;</button>
+</div>
+
+<!-- Mode Switcher Tabs -->
+<div style="display: flex; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.25);">
+  <button class="dock-btn active" id="btn-tab-curated" onclick="switchCohortDrawerMode('curated', this)" style="flex: 1; font-size: 10px; padding: 6px 4px; text-align: center;">
+    Synthetic Phantoms ({{ cases|length }})
+  </button>
+  <button class="dock-btn" id="btn-tab-upload" onclick="switchCohortDrawerMode('upload_tab', this)" style="flex: 1; font-size: 10px; padding: 6px 4px; text-align: center; color: var(--clinical-cyan);">
+    Upload Scan (.nii / .dcm)
+  </button>
+  <button class="dock-btn" id="btn-tab-fs" onclick="switchCohortDrawerMode('filesystem', this)" style="flex: 1; font-size: 10px; padding: 6px 4px; text-align: center;">
+    Local Mount
+  </button>
+</div>
+
+<!-- Upload & Ingestion Dropzone -->
+<div class="sidebar-ingestion-box">
+  <form id="cohort-upload-form"
+        hx-post="/cases/upload"
+        hx-encoding="multipart/form-data"
+        hx-target="#main-stage"
+        hx-swap="innerHTML"
+        style="display: flex; flex-direction: column;">
+    <label class="file-upload-label" id="file-upload-dropzone">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>Drag & Drop Volume (.nii / .nii.gz / .dcm)</span>
+      <input type="file" id="nifti-file-input" name="file" accept=".nii,.nii.gz,.dcm" style="display: none;" onchange="this.form.requestSubmit()" />
+    </label>
+  </form>
+</div>
+
+<!-- Curated Open Phantoms List -->
+<div class="cohort-list-container" id="cohort-curated-list">
+  {% for c in cases %}
+  <div class="case-card {% if c.case_id == active_case_id %}active{% endif %}"
+       data-case-id="{{ c.case_id }}"
+       hx-post="/cases/{{ c.case_id }}/select"
+       hx-target="#main-stage"
+       hx-swap="innerHTML"
+       onclick="highlightCaseCard(this)">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <div style="font-weight: 600; font-size: 12px; color: var(--text-primary);">{{ c.name }}</div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">{{ c.dataset }}</div>
+      </div>
+      <span class="brand-badge" style="background: rgba(0,240,255,0.1); color: var(--clinical-cyan); border-color: rgba(0,240,255,0.3);">
+        {{ c.pathology }}
+      </span>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; font-size: 10px; color: var(--text-muted);">
+      <div>
+        <span>Volume</span>
+        <div style="color: var(--text-primary); font-family: var(--font-mono);">{{ c.tumor_volume_ml }} mL</div>
+      </div>
+      <div>
+        <span>Slices</span>
+        <div style="color: var(--text-primary); font-family: var(--font-mono);">{{ c.n_slices }} (128x128)</div>
+      </div>
+      <div>
+        <span>Benchmark Dice</span>
+        <div style="color: var(--clinical-emerald); font-family: var(--font-mono); font-weight: 600;">{{ "%.2f"|format(c.dice * 100) }}%</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Upload Tab Details -->
+<div id="cohort-upload-tab" style="display: none; padding: 12px; font-size: 11px; color: var(--text-muted); line-height: 1.6;">
+  <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px;">Zero-Persistence Clinical Ingestion</div>
+  <p>Upload any 3D NIfTI (.nii, .nii.gz) or DICOM (.dcm) volumetric sequence.</p>
+  <p style="margin-top: 6px;">All scans are processed ephemerally in volatile RAM and are never permanently stored, strictly adhering to medical data privacy standards.</p>
+</div>
+
+<!-- Local Mount Tab (Optional for Private Environments) -->
+<div id="cohort-fs-explorer" style="display: none; padding: 12px;">
+  <form id="server-path-form"
+        hx-post="/cases/server-path/load"
+        hx-target="#main-stage"
+        hx-swap="innerHTML"
+        class="path-input-group">
+    <input type="text" id="server-path-input" name="server_path" class="path-input"
+           placeholder="Enter absolute local path (e.g. /path/to/scan.nii.gz)" required />
+    <button type="submit" id="load-server-path-btn" class="dock-btn" style="background: rgba(0,240,255,0.15); color: var(--clinical-cyan); padding: 5px 10px; font-size: 10px;">
+      Mount
+    </button>
+  </form>
+</div>
+
+<script>
+  function switchCohortDrawerMode(mode, btn) {
+    document.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const curatedList = document.getElementById("cohort-curated-list");
+    const uploadTab = document.getElementById("cohort-upload-tab");
+    const fsExplorer = document.getElementById("cohort-fs-explorer");
+
+    if (curatedList) curatedList.style.display = (mode === 'curated') ? 'block' : 'none';
+    if (uploadTab) uploadTab.style.display = (mode === 'upload_tab') ? 'block' : 'none';
+    if (fsExplorer) fsExplorer.style.display = (mode === 'filesystem') ? 'block' : 'none';
+  }
+
+  function highlightCaseCard(card) {
+    document.querySelectorAll('.case-card').forEach(c => c.classList.remove('active'));
+    if (card) card.classList.add('active');
+  }
+</script>

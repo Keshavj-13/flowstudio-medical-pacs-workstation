@@ -1,0 +1,526 @@
+<div class="sidebar-header" style="display: flex; justify-content: space-between; align-items: center;">
+  <div style="display: flex; align-items: center; gap: 6px;">
+    <span class="sidebar-title">Clinical Data & Ingestion</span>
+    <span class="brand-badge">{{ (cases|length) + (mamamia_cohorts|length if mamamia_cohorts else 1504) + (all_cohorts|length if all_cohorts else 99) + (tcia_cohorts|length if tcia_cohorts else 33) + (clinical_dicom_cohorts|length if clinical_dicom_cohorts else 531) }} Scans</span>
+  </div>
+  <button type="button" class="island-ctrl-btn" onclick="toggleSidebar()" title="Close Cohort Island" style="padding: 2px 6px; font-size: 12px;">&times;</button>
+</div>
+
+<!-- Multi-Dataset Mode Switcher Tabs -->
+<div style="display: flex; gap: 3px; padding: 6px 10px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.25); flex-wrap: wrap;">
+  <button class="dock-btn active" id="btn-tab-curated" onclick="switchCohortDrawerMode('curated', this)" style="flex: 1 1 45%; font-size: 10px; padding: 5px 3px; text-align: center;">
+    Curated ({{ cases|length }})
+  </button>
+  <button class="dock-btn" id="server-explorer-tab" onclick="switchCohortDrawerMode('explorer', this)" style="flex: 1 1 45%; font-size: 10px; padding: 5px 3px; text-align: center;">
+    Yunnan ({{ all_cohorts|length if all_cohorts else 99 }})
+  </button>
+  <button class="dock-btn" id="btn-tab-mamamia" onclick="switchCohortDrawerMode('mamamia', this)" style="flex: 1 1 30%; font-size: 10px; padding: 5px 3px; text-align: center; color: var(--clinical-cyan);">
+    MAMA-MIA ({{ mamamia_cohorts|length if mamamia_cohorts else 1504 }})
+  </button>
+  <button class="dock-btn" id="btn-tab-tcia" onclick="switchCohortDrawerMode('tcia', this)" style="flex: 1 1 30%; font-size: 10px; padding: 5px 3px; text-align: center;">
+    TCIA AMBL ({{ tcia_cohorts|length if tcia_cohorts else 33 }})
+  </button>
+  <button class="dock-btn" id="btn-tab-dicom" onclick="switchCohortDrawerMode('dicom', this)" style="flex: 1 1 30%; font-size: 10px; padding: 5px 3px; text-align: center; color: var(--clinical-emerald);">
+    Clinical DICOM ({{ clinical_dicom_cohorts|length if clinical_dicom_cohorts else 531 }})
+  </button>
+  <button class="dock-btn" id="btn-tab-fs" onclick="switchCohortDrawerMode('filesystem', this); if(!window.fsLoaded) loadFsDir('/workspace');" style="flex: 1 1 100%; font-size: 10px; padding: 4px 3px; text-align: center;">
+    Filesystem / Ingestion
+  </button>
+</div>
+
+<!-- Direct Server Path & Upload Ingestion Box -->
+<div class="sidebar-ingestion-box">
+  <!-- Server Path Ingestion -->
+  <form id="server-path-form"
+        hx-post="/cases/server-path/load"
+        hx-target="#main-stage"
+        hx-swap="innerHTML"
+        class="path-input-group">
+    <input type="text" id="server-path-input" name="server_path" class="path-input"
+           placeholder="Enter server path (e.g. /workspace/mama_mia_dataset2/MAMA-MIA/images/DUKE_010 or .dcm)" required />
+    <button type="submit" id="load-server-path-btn" class="dock-btn" style="background: rgba(0,240,255,0.15); color: var(--clinical-cyan); border: 1px solid rgba(0,240,255,0.3); padding: 4px 8px; border-radius: var(--radius-xs); font-size: 10px;">
+      Mount
+    </button>
+  </form>
+
+  <!-- Upload Local Volume -->
+  <form id="cohort-upload-form"
+        hx-post="/cases/upload"
+        hx-encoding="multipart/form-data"
+        hx-target="#main-stage"
+        hx-swap="innerHTML"
+        style="display: flex; flex-direction: column;">
+    <label class="file-upload-label" id="file-upload-dropzone">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>Upload Volume (.nii / .nii.gz / .dcm)</span>
+      <input type="file" id="nifti-file-input" name="file" accept=".nii,.nii.gz,.dcm" style="display: none;" onchange="this.form.requestSubmit()" />
+    </label>
+  </form>
+
+  <!-- Cohort Quick Filter Input (Curated) -->
+  <input type="text" id="cohort-filter-input" class="path-input"
+         placeholder="Filter curated cases..."
+         oninput="filterCohortList(this.value)" />
+
+  <!-- Server Explorer Search Input (Yunnan 99 cohorts) -->
+  <input type="text" id="explorer-search-input" class="path-input" style="display: none;"
+         placeholder="Search 99 Yunnan cohorts by ID or path..."
+         oninput="filterExplorerList(this.value)" />
+
+  <!-- MAMA-MIA Search Input & Filter Chips -->
+  <div id="mamamia-search-wrapper" style="display: none; flex-direction: column; gap: 4px;">
+    <input type="text" id="mamamia-search-input" class="path-input"
+           placeholder="Search 1,504 MAMA-MIA cases (e.g. DUKE_001, ISPY)..."
+           oninput="filterMamaMiaList(this.value)" />
+    <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+      <button type="button" class="dock-btn active" onclick="filterMamaMiaPrefix('ALL', this)" style="font-size: 8px; padding: 1px 5px;">All (1.5k)</button>
+      <button type="button" class="dock-btn" onclick="filterMamaMiaPrefix('DUKE', this)" style="font-size: 8px; padding: 1px 5px; color: var(--clinical-cyan);">DUKE (290)</button>
+      <button type="button" class="dock-btn" onclick="filterMamaMiaPrefix('ISPY2', this)" style="font-size: 8px; padding: 1px 5px;">IS-PY 2 (980)</button>
+      <button type="button" class="dock-btn" onclick="filterMamaMiaPrefix('ISPY1', this)" style="font-size: 8px; padding: 1px 5px;">IS-PY 1 (170)</button>
+      <button type="button" class="dock-btn" onclick="filterMamaMiaPrefix('NACT', this)" style="font-size: 8px; padding: 1px 5px;">NACT (64)</button>
+    </div>
+  </div>
+
+  <!-- TCIA Search Input -->
+  <input type="text" id="tcia-search-input" class="path-input" style="display: none;"
+         placeholder="Search 33 TCIA AMBL cases..."
+         oninput="filterTciaList(this.value)" />
+
+  <!-- Clinical DICOM Search Input -->
+  <input type="text" id="dicom-search-input" class="path-input" style="display: none;"
+         placeholder="Search 531 Clinical DICOM & nnUNet cases (e.g. IMG001, case_0001)..."
+         oninput="filterDicomList(this.value)" />
+</div>
+
+<!-- SECTION 1: Curated Case List -->
+<div class="cohort-list" id="cohort-items">
+  {% for c in cases %}
+  <button class="case-card {% if c.case_id == active_case_id %}active{% endif %}"
+          data-case-id="{{ c.case_id }}"
+          data-case-name="{{ c.name }}"
+          data-pathology="{{ c.pathology }}"
+          hx-post="/cases/{{ c.case_id }}/select"
+          hx-target="#main-stage"
+          hx-swap="innerHTML"
+          onclick="setActiveCard(this)">
+    <div class="case-card-header">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span class="case-name">{{ c.name }}</span>
+        {% if c.case_id == 'yunnan_19' %}
+        <span style="font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: var(--radius-xs); background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35);">
+          Verified Benchmark
+        </span>
+        {% endif %}
+      </div>
+      <span class="case-badge">{{ c.pathology }}</span>
+    </div>
+    <div class="case-meta">
+      <span class="case-meta-item">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="20" height="20" rx="2" />
+          <line x1="7" y1="2" x2="7" y2="22" />
+          <line x1="17" y1="2" x2="17" y2="22" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+        </svg>
+        {{ c.n_slices }} Slices
+      </span>
+      <span class="case-meta-item">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+        DCE-MRI
+      </span>
+      <span class="case-meta-item" style="color: var(--clinical-cyan); font-family: var(--font-mono);">
+        {{ c.tumor_volume_ml }} mL
+      </span>
+    </div>
+  </button>
+  {% endfor %}
+</div>
+
+<!-- SECTION 2: Full Server Cohort Explorer (All 99 Cohorts in /workspace/dataset) -->
+<div class="cohort-list" id="cohort-explorer-list" style="display: none; max-height: calc(100vh - 240px); overflow-y: auto;">
+  <div style="font-size: 10px; color: var(--text-muted); padding: 4px 6px; font-family: var(--font-mono);">
+    Root: /workspace/dataset ({{ all_cohorts|length if all_cohorts else 99 }} Cohorts Indexed)
+  </div>
+  {% for c in all_cohorts %}
+  <div class="cohort-explorer-card"
+       data-cohort-id="{{ c.cohort_id }}"
+       data-cohort-path="{{ c.path }}"
+       style="background: rgba(12, 17, 28, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #fff;">Cohort #{{ c.cohort_id }}</span>
+        {% if c.has_gt %}
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.3);">
+          GT Verified
+        </span>
+        {% endif %}
+      </div>
+      <button class="dock-btn btn-mount-cohort"
+              hx-post="/cases/yunnan_{{ c.cohort_id }}/select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML"
+              style="background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35); padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: var(--radius-xs);">
+        Mount
+      </button>
+    </div>
+    <div style="font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+      {{ c.path }}
+    </div>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.04); border-radius: 2px; color: var(--text-secondary);">896×896×120</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(0,240,255,0.08); border-radius: 2px; color: var(--clinical-cyan);">DCE (P1-P5)</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(52,211,153,0.08); border-radius: 2px; color: var(--clinical-emerald);">{{ c.file_count }} Files</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- SECTION 3: MAMA-MIA Cohort List (1,504 Cohorts) -->
+<div class="cohort-list" id="mamamia-cohort-list" style="display: none; max-height: calc(100vh - 240px); overflow-y: auto;">
+  <div style="font-size: 10px; color: var(--text-muted); padding: 4px 6px; font-family: var(--font-mono); display: flex; justify-content: space-between;">
+    <span>Root: /workspace/mama_mia_dataset2/MAMA-MIA</span>
+    <span style="color: var(--clinical-cyan);">{{ mamamia_cohorts|length if mamamia_cohorts else 1504 }} Cases</span>
+  </div>
+  {% for c in mamamia_cohorts %}
+  <div class="mamamia-card"
+       data-cohort-id="{{ c.cohort_id }}"
+       data-prefix="{{ c.prefix }}"
+       data-path="{{ c.path }}"
+       style="background: rgba(12, 17, 28, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #fff;">{{ c.cohort_id }}</span>
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(0, 240, 255, 0.12); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.25);">
+          {{ c.prefix }}
+        </span>
+        {% if c.has_gt %}
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(52, 211, 153, 0.12); color: var(--clinical-emerald); border: 1px solid rgba(52, 211, 153, 0.25);">
+          GT Expert
+        </span>
+        {% endif %}
+      </div>
+      <button class="dock-btn btn-mount-cohort"
+              hx-post="/cases/mamamia_{{ c.cohort_id }}/select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML"
+              style="background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35); padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: var(--radius-xs);">
+        Mount
+      </button>
+    </div>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.04); border-radius: 2px; color: var(--text-secondary);">{{ c.shape_xyz[0] }}×{{ c.shape_xyz[1] }}×{{ c.n_slices }}</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(0,240,255,0.08); border-radius: 2px; color: var(--clinical-cyan);">DCE (5-Phase)</span>
+      {% if c.dice %}
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(52,211,153,0.08); border-radius: 2px; color: var(--clinical-emerald); font-family: var(--font-mono);">
+        Dice: {{ (c.dice * 100)|round(1) }}%
+      </span>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- SECTION 4: TCIA AMBL Cohort List (33 Cohorts) -->
+<div class="cohort-list" id="tcia-cohort-list" style="display: none; max-height: calc(100vh - 240px); overflow-y: auto;">
+  <div style="font-size: 10px; color: var(--text-muted); padding: 4px 6px; font-family: var(--font-mono); display: flex; justify-content: space-between;">
+    <span>Root: /workspace/tcia/images</span>
+    <span style="color: var(--clinical-cyan);">{{ tcia_cohorts|length if tcia_cohorts else 33 }} Cases</span>
+  </div>
+  {% for c in tcia_cohorts %}
+  <div class="tcia-card"
+       data-cohort-id="{{ c.cohort_id }}"
+       data-path="{{ c.path }}"
+       style="background: rgba(12, 17, 28, 0.7); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-weight: 700; font-size: 11px; color: #fff;">{{ c.cohort_id }}</span>
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">
+          QIN Breast
+        </span>
+        {% if c.has_gt %}
+        <span style="font-size: 8px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; background: rgba(52, 211, 153, 0.15); color: var(--clinical-emerald); border: 1px solid rgba(52, 211, 153, 0.3);">
+          GT Ref
+        </span>
+        {% endif %}
+      </div>
+      <button class="dock-btn btn-mount-cohort"
+              hx-post="/cases/tcia_{{ c.cohort_id }}/select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML"
+              style="background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35); padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: var(--radius-xs);">
+        Mount
+      </button>
+    </div>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.04); border-radius: 2px; color: var(--text-secondary);">512×512×116</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(0,240,255,0.08); border-radius: 2px; color: var(--clinical-cyan);">T1DCE (0-4)</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(52,211,153,0.08); border-radius: 2px; color: var(--clinical-emerald);">Ref Mask</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- SECTION 5: Clinical DICOM & Reasoning Cohort (531 cases) -->
+<div class="cohort-list" id="dicom-cohort-list" style="display: none; max-height: calc(100vh - 240px); overflow-y: auto;">
+  {% for c in clinical_dicom_cohorts %}
+  <div class="case-card dicom-card"
+       data-cohort-id="{{ c.cohort_id }}"
+       data-name="{{ c.name }}"
+       data-prefix="{{ c.prefix }}"
+       style="cursor: pointer; padding: 7px 10px; margin-bottom: 5px;"
+       hx-post="/cases/{{ c.case_id }}/select"
+       hx-target="#main-stage"
+       hx-swap="innerHTML"
+       onclick="setActiveCard(this)">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="font-size: 8px; font-weight: 700; padding: 1px 4px; border-radius: 2px; {% if c.prefix == 'NNUNET' %}background: rgba(16,185,129,0.2); color: var(--clinical-emerald); border: 1px solid rgba(16,185,129,0.3);{% else %}background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.3);{% endif %}">
+          {{ c.prefix }}
+        </span>
+        <span style="font-size: 11px; font-weight: 600; color: #fff;">{{ c.name }}</span>
+        {% if c.has_gt %}
+        <span style="font-size: 8px; color: var(--clinical-emerald); border: 1px solid rgba(52,211,153,0.3); padding: 0 3px; border-radius: 2px;">GT</span>
+        {% endif %}
+      </div>
+      <button class="dock-btn btn-mount-cohort"
+              hx-post="/cases/{{ c.case_id }}/select"
+              hx-target="#main-stage"
+              hx-swap="innerHTML"
+              style="background: rgba(0, 240, 255, 0.15); color: var(--clinical-cyan); border: 1px solid rgba(0, 240, 255, 0.35); padding: 2px 8px; font-size: 10px; font-weight: 600; border-radius: var(--radius-xs);">
+        Mount
+      </button>
+    </div>
+    <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(255,255,255,0.04); border-radius: 2px; color: var(--text-secondary);">{{ c.shape_xyz[0] }}×{{ c.shape_xyz[1] }}×{{ c.shape_xyz[2] }}</span>
+      <span style="font-size: 9px; padding: 1px 4px; background: rgba(0,240,255,0.08); border-radius: 2px; color: var(--clinical-cyan);">{{ c.pathology }}</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- SECTION 6: Interactive Filesystem & DICOM Explorer -->
+<div class="cohort-list" id="fs-explorer-view" style="display: none; max-height: calc(100vh - 240px); overflow-y: auto;">
+  <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 6px;">
+    <!-- Breadcrumb Bar -->
+    <div style="display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; border: 1px solid var(--glass-border);">
+      <button type="button" class="dock-btn" onclick="goUpFsDir()" style="font-size: 9px; padding: 2px 6px;">Up</button>
+      <span id="fs-current-path-label" style="font-family: var(--font-mono); font-size: 9px; color: var(--clinical-cyan); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">/workspace</span>
+      <button type="button" class="dock-btn" onclick="refreshFsDir()" style="font-size: 9px; padding: 2px 6px;">Refresh</button>
+    </div>
+
+    <!-- Quick Bookmark Pills -->
+    <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+      <button type="button" class="dock-btn" onclick="loadFsDir('/workspace/mama_mia_dataset2/MAMA-MIA/images')" style="font-size: 8px; padding: 1px 4px;">MAMA-MIA Imgs</button>
+      <button type="button" class="dock-btn" onclick="loadFsDir('/workspace/tcia/images')" style="font-size: 8px; padding: 1px 4px;">TCIA Imgs</button>
+      <button type="button" class="dock-btn" onclick="loadFsDir('/workspace/dataset')" style="font-size: 8px; padding: 1px 4px;">Yunnan</button>
+      <button type="button" class="dock-btn" onclick="loadFsDir('/workspace/reasoning/grpo_reasoning_data/DICOM_Images')" style="font-size: 8px; padding: 1px 4px; color: #c084fc;">DICOM Series</button>
+    </div>
+
+    <!-- File tree container -->
+    <div id="fs-items-container" style="display: flex; flex-direction: column; gap: 3px; margin-top: 4px;">
+      <div style="font-size: 10px; color: var(--text-muted); text-align: center; padding: 12px;">Loading filesystem items...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let activeMamaMiaPrefix = "ALL";
+  let currentFsPath = "/workspace";
+  window.fsLoaded = false;
+
+  function setActiveCard(el) {
+    document.querySelectorAll('.case-card').forEach(c => c.classList.remove('active'));
+    if (el) el.classList.add('active');
+    // Automatically dismiss cohort island when a patient case is selected to give full canvas
+    const cohortIsland = document.getElementById("cohort-sidebar");
+    if (cohortIsland && !cohortIsland.classList.contains("collapsed")) {
+      cohortIsland.classList.add("collapsed");
+      const sbLabel = document.getElementById("sidebar-toggle-label");
+      if (sbLabel) sbLabel.innerText = "Open Cohorts";
+      const trigger = document.getElementById("cohort-open-trigger");
+      if (trigger) trigger.style.display = "flex";
+    }
+  }
+
+  function switchCohortDrawerMode(mode, btn) {
+    document.querySelectorAll('.dock-btn').forEach(b => {
+      if (['btn-tab-curated', 'server-explorer-tab', 'btn-tab-mamamia', 'btn-tab-tcia', 'btn-tab-dicom', 'btn-tab-fs'].includes(b.id)) {
+        b.classList.remove('active');
+      }
+    });
+    btn.classList.add('active');
+
+    const curatedList = document.getElementById('cohort-items');
+    const explorerList = document.getElementById('cohort-explorer-list');
+    const mamamiaList = document.getElementById('mamamia-cohort-list');
+    const tciaList = document.getElementById('tcia-cohort-list');
+    const dicomList = document.getElementById('dicom-cohort-list');
+    const fsView = document.getElementById('fs-explorer-view');
+
+    const curatedFilter = document.getElementById('cohort-filter-input');
+    const explorerFilter = document.getElementById('explorer-search-input');
+    const mamamiaSearchWrapper = document.getElementById('mamamia-search-wrapper');
+    const tciaFilter = document.getElementById('tcia-search-input');
+    const dicomFilter = document.getElementById('dicom-search-input');
+
+    // Hide all
+    if (curatedList) curatedList.style.display = 'none';
+    if (explorerList) explorerList.style.display = 'none';
+    if (mamamiaList) mamamiaList.style.display = 'none';
+    if (tciaList) tciaList.style.display = 'none';
+    if (dicomList) dicomList.style.display = 'none';
+    if (fsView) fsView.style.display = 'none';
+
+    if (curatedFilter) curatedFilter.style.display = 'none';
+    if (explorerFilter) explorerFilter.style.display = 'none';
+    if (mamamiaSearchWrapper) mamamiaSearchWrapper.style.display = 'none';
+    if (tciaFilter) tciaFilter.style.display = 'none';
+    if (dicomFilter) dicomFilter.style.display = 'none';
+
+    if (mode === 'curated') {
+      if (curatedList) curatedList.style.display = 'flex';
+      if (curatedFilter) curatedFilter.style.display = 'block';
+    } else if (mode === 'explorer') {
+      if (explorerList) explorerList.style.display = 'block';
+      if (explorerFilter) explorerFilter.style.display = 'block';
+    } else if (mode === 'mamamia') {
+      if (mamamiaList) mamamiaList.style.display = 'block';
+      if (mamamiaSearchWrapper) mamamiaSearchWrapper.style.display = 'flex';
+    } else if (mode === 'tcia') {
+      if (tciaList) tciaList.style.display = 'block';
+      if (tciaFilter) tciaFilter.style.display = 'block';
+    } else if (mode === 'dicom') {
+      if (dicomList) dicomList.style.display = 'block';
+      if (dicomFilter) dicomFilter.style.display = 'block';
+    } else if (mode === 'filesystem') {
+      if (fsView) fsView.style.display = 'block';
+    }
+  }
+
+  function filterDicomList(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#dicom-cohort-list .dicom-card').forEach(c => {
+      const id = (c.getAttribute('data-cohort-id') || '').toLowerCase();
+      const name = (c.getAttribute('data-name') || '').toLowerCase();
+      c.style.display = (id.includes(term) || name.includes(term)) ? 'block' : 'none';
+    });
+  }
+
+  function filterCohortList(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#cohort-items .case-card').forEach(c => {
+      const txt = (c.getAttribute('data-case-name') + ' ' + c.getAttribute('data-pathology')).toLowerCase();
+      c.style.display = txt.includes(term) ? 'flex' : 'none';
+    });
+  }
+
+  function filterExplorerList(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#cohort-explorer-list .cohort-explorer-card').forEach(c => {
+      const id = (c.getAttribute('data-cohort-id') || '').toLowerCase();
+      const path = (c.getAttribute('data-cohort-path') || '').toLowerCase();
+      c.style.display = (id.includes(term) || path.includes(term)) ? 'flex' : 'none';
+    });
+  }
+
+  function filterMamaMiaList(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#mamamia-cohort-list .mamamia-card').forEach(c => {
+      const id = (c.getAttribute('data-cohort-id') || '').toLowerCase();
+      const prefix = c.getAttribute('data-prefix') || '';
+      const matchesPrefix = (activeMamaMiaPrefix === 'ALL' || prefix === activeMamaMiaPrefix);
+      const matchesText = !term || id.includes(term);
+      c.style.display = (matchesPrefix && matchesText) ? 'flex' : 'none';
+    });
+  }
+
+  function filterMamaMiaPrefix(prefix, btn) {
+    activeMamaMiaPrefix = prefix;
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterMamaMiaList(document.getElementById('mamamia-search-input')?.value || '');
+  }
+
+  function filterTciaList(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('#tcia-cohort-list .tcia-card').forEach(c => {
+      const id = (c.getAttribute('data-cohort-id') || '').toLowerCase();
+      c.style.display = id.includes(term) ? 'flex' : 'none';
+    });
+  }
+
+  async function loadFsDir(path) {
+    currentFsPath = path;
+    window.fsLoaded = true;
+    const label = document.getElementById('fs-current-path-label');
+    if (label) label.innerText = path;
+    const container = document.getElementById('fs-items-container');
+    if (!container) return;
+    container.innerHTML = '<div style="font-size: 10px; color: var(--text-muted); text-align: center; padding: 10px;">Scanning directory...</div>';
+
+    try {
+      const res = await fetch(`/api/fs/explore?path=${encodeURIComponent(path)}`);
+      const data = await res.json();
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div style="font-size: 10px; color: var(--text-muted); text-align: center; padding: 10px;">Empty directory</div>';
+        return;
+      }
+      let html = '';
+      data.items.forEach(it => {
+        if (it.is_dir) {
+          const isDcm = it.type === 'dcm_dir';
+          const isNii = it.type === 'nii_dir';
+          html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05);">
+              <div onclick="loadFsDir('${it.path}')" style="cursor: pointer; display: flex; align-items: center; gap: 4px; overflow: hidden; flex: 1;">
+                <span style="font-size: 8px; font-weight: 700; color: var(--clinical-cyan); padding: 1px 3px; border: 1px solid rgba(0,240,255,0.3); border-radius: 2px;">DIR</span>
+                <span style="font-size: 10px; font-weight: 600; color: ${isDcm ? '#c084fc' : (isNii ? 'var(--clinical-cyan)' : '#e2e8f0')}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.name}</span>
+                ${isDcm ? '<span style="font-size: 8px; background: rgba(168,85,247,0.2); color: #c084fc; padding: 1px 3px; border-radius: 2px;">DICOM</span>' : ''}
+                ${isNii ? '<span style="font-size: 8px; background: rgba(0,240,255,0.15); color: var(--clinical-cyan); padding: 1px 3px; border-radius: 2px;">NIfTI</span>' : ''}
+              </div>
+              <button class="dock-btn" hx-post="/cases/server-path/load" hx-vals='{"server_path": "${it.path}"}' hx-target="#main-stage" hx-swap="innerHTML" style="font-size: 9px; padding: 2px 6px; background: rgba(0,240,255,0.1); color: var(--clinical-cyan);">
+                Mount
+              </button>
+            </div>
+          `;
+        } else {
+          html += `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.03);">
+              <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; flex: 1;">
+                <span style="font-size: 8px; font-weight: 700; color: var(--text-muted); padding: 1px 3px; border: 1px solid rgba(255,255,255,0.1); border-radius: 2px;">FILE</span>
+                <span style="font-size: 10px; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${it.name}</span>
+                <span style="font-size: 8px; color: var(--text-muted); font-family: var(--font-mono);">${it.size_mb} MB</span>
+              </div>
+              <button class="dock-btn" hx-post="/cases/server-path/load" hx-vals='{"server_path": "${it.path}"}' hx-target="#main-stage" hx-swap="innerHTML" style="font-size: 9px; padding: 2px 6px; background: rgba(0,240,255,0.1); color: var(--clinical-cyan);">
+                Mount
+              </button>
+            </div>
+          `;
+        }
+      });
+      container.innerHTML = html;
+      htmx.process(container);
+    } catch (e) {
+      container.innerHTML = `<div style="font-size: 10px; color: var(--clinical-crimson); text-align: center; padding: 10px;">Error reading path: ${e.message}</div>`;
+    }
+  }
+
+  function goUpFsDir() {
+    if (!currentFsPath || currentFsPath === '/workspace') return;
+    const parts = currentFsPath.split('/');
+    parts.pop();
+    const up = parts.join('/') || '/workspace';
+    loadFsDir(up);
+  }
+
+  function refreshFsDir() {
+    loadFsDir(currentFsPath);
+  }
+</script>

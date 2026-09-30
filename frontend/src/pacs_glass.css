@@ -1,0 +1,590 @@
+/* ══════════════════════════════════════════════════════════════════════════════════
+   FLOWSTUDIO & MEDREASON PACS INDUSTRIAL GLASS WORKSTATION
+   Full-Plane Edge-to-Edge Canvas • Floating Industrial Glass HUDs • Titanium CAD
+   ══════════════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* Obsidian Palette */
+  --bg-deep: #030508;
+  --bg-darker: #050810;
+  --bg-glass: rgba(10, 16, 28, 0.65);
+  --bg-glass-heavy: rgba(10, 16, 28, 0.85);
+  --bg-card: rgba(16, 24, 40, 0.55);
+  --bg-hover: rgba(30, 42, 68, 0.75);
+  --bg-active: rgba(0, 240, 255, 0.15);
+
+  /* Industrial Glass & Hairlines */
+  --glass-blur: blur(16px);
+  --border-hairline: rgba(255, 255, 255, 0.09);
+  --border-subtle: rgba(255, 255, 255, 0.18);
+  --border-active: #00f0ff;
+  --glass-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+
+  /* Accents */
+  --cyan: #00f0ff;
+  --cyan-glow: rgba(0, 240, 255, 0.35);
+  --emerald: #10b981;
+  --emerald-glow: rgba(16, 185, 129, 0.35);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.35);
+  --rose: #ef4444;
+  --rose-glow: rgba(239, 68, 68, 0.35);
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+  --text-dim: #94a3b8;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: var(--bg-deep);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Full-Plane Edge-to-Edge Canvas Stage ── */
+.full-plane-stage {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #020408;
+  z-index: 1;
+}
+
+/* ── True High-Transparency Industrial Glass Panels ── */
+.pro-glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--glass-shadow);
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+.pro-glass-panel:hover, .pro-glass-panel:focus-within {
+  background: var(--bg-glass-heavy);
+  border-color: var(--border-subtle);
+}
+
+/* ── Floating Top Navigation Bar ── */
+.floating-top-bar {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  right: 14px;
+  height: 48px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  gap: 12px;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cyan);
+}
+
+.brand-title-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-pro {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 5px;
+  background: linear-gradient(135deg, #0284c7 0%, #06b6d4 100%);
+  color: #fff;
+  border-radius: 4px;
+}
+
+/* ── Titanium CAD Buttons ── */
+.btn-cad {
+  background: rgba(22, 30, 48, 0.55);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-cad:hover {
+  background: rgba(38, 52, 82, 0.85);
+  color: #ffffff;
+  border-color: var(--border-subtle);
+}
+
+.btn-cad:active {
+  transform: scale(0.97);
+}
+
+.btn-cad.active {
+  background: rgba(0, 240, 255, 0.18);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+}
+
+.btn-icon {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(22, 30, 48, 0.55);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(38, 52, 82, 0.85);
+  color: #fff;
+  border-color: var(--border-subtle);
+}
+
+.btn-icon.active {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+/* ── Floating Left Drawer: Ingestion & Model Core ── */
+.floating-drawer-left {
+  position: absolute;
+  top: 66px;
+  bottom: 82px;
+  left: 14px;
+  width: 330px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+}
+
+.floating-drawer-left.collapsed {
+  transform: translateX(-360px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Toggle pills for collapsed drawers */
+.drawer-toggle-tab-left {
+  position: absolute;
+  top: 66px;
+  left: 14px;
+  z-index: 34;
+}
+
+.drawer-toggle-tab-right {
+  position: absolute;
+  top: 66px;
+  right: 14px;
+  z-index: 34;
+}
+
+/* ── Floating Right Drawer: Diagnostics, Prompting & Reasoning ── */
+.floating-drawer-right {
+  position: absolute;
+  top: 66px;
+  bottom: 82px;
+  right: 14px;
+  width: 380px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 14px;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+}
+
+.floating-drawer-right.collapsed {
+  transform: translateX(410px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Floating Bottom Radiological Knobs Dock ── */
+.floating-bottom-dock {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: calc(100% - 28px);
+  max-width: 860px;
+  padding: 10px 16px;
+}
+
+.dock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+/* ── Sliders & Inputs ── */
+.pacs-slider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.slider-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.slider-val-readout {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--cyan);
+  min-width: 45px;
+  text-align: right;
+}
+
+.pacs-range-input {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.pacs-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--cyan);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--cyan);
+  transition: transform 0.1s ease;
+}
+
+.pacs-range-input::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+
+/* ── Interactive VLM Prompt Bar ── */
+.vlm-prompt-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(6, 10, 18, 0.75);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.vlm-prompt-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.vlm-prompt-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+.vlm-prompt-input::placeholder {
+  color: var(--text-dim);
+}
+
+.prompt-suggestions-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.prompt-chip {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.prompt-chip:hover {
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--cyan);
+  border-color: rgba(0, 240, 255, 0.3);
+}
+
+/* ── Clinical Thinking Trace & Terminal ── */
+.thinking-box {
+  background: rgba(4, 7, 14, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 8px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: #a5f3fc;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.vlm-response-bubble {
+  background: rgba(14, 22, 38, 0.75);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #f1f5f9;
+}
+
+/* ── Quantitative Metric Grid ── */
+.metric-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.metric-chip {
+  background: rgba(16, 24, 40, 0.6);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.metric-chip-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.metric-chip-val {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.metric-chip-val.highlight {
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan-glow);
+}
+
+/* ── Floating Plots Modal ── */
+.floating-plots-modal {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 160px);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* ── 3D Stack Viewport ── */
+.stack3d-container {
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1200px;
+  background: #020408;
+  overflow: hidden;
+}
+
+.stack3d-world {
+  width: 420px;
+  height: 420px;
+  position: relative;
+  transform-style: preserve-3d;
+  cursor: grab;
+}
+
+.stack3d-world:active {
+  cursor: grabbing;
+}
+
+.film-slice-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  pointer-events: none;
+  backface-visibility: visible;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.film-slice-layer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.film-slice-layer.active-slice {
+  border: 2px solid var(--cyan);
+  box-shadow: 0 0 24px var(--cyan-glow);
+  filter: brightness(1.25);
+  z-index: 1000;
+}
+
+/* ── Kinetic Probe Card ── */
+.kinetic-probe-card {
+  position: absolute;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: 360px;
+  padding: 14px;
+}
+
+.kinetic-curve-svg {
+  width: 100%;
+  height: 120px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  margin: 10px 0;
+}
+
+/* ── Prominent Run / Scan Button ── */
+.btn-run-pacs {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #0284c7 0%, #059669 100%);
+  color: #ffffff;
+  border: 1px solid #10b981;
+  border-radius: 7px;
+  padding: 5px 14px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-run-pacs:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0ea5e9 0%, #10b981 100%);
+  border-color: #34d399;
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-run-pacs:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-run-pacs:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@keyframes spin-pacs {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-fast {
+  animation: spin-pacs 0.8s linear infinite;
+}

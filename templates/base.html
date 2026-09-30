@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowStudio PACS • Precision Oncology Diagnostic Workstation</title>
+  <link rel="stylesheet" href="/static/css/clinical_pacs.css?v=3">
+  <script src="/static/js/htmx.min.js"></script>
+  <script src="/static/js/three.min.js"></script>
+</head>
+<body>
+<div class="pacs-app-container">
+  <!-- Clinical Header -->
+  <header class="pacs-header">
+    <div class="brand-section">
+      <div class="clinical-mark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00f0ff" stroke-width="2.5">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <span class="brand-title">FlowStudio PACS</span>
+      <span class="brand-badge">DICOM 3.0 COMPLIANT</span>
+      <span class="brand-badge" style="background: rgba(16, 185, 129, 0.1); color: var(--clinical-emerald); border-color: rgba(16, 185, 129, 0.3);">
+        ACR BI-RADS ATLAS
+      </span>
+    </div>
+
+    <div class="header-center-info">
+      <div class="header-stat">
+        <span class="dot"></span>
+        <span>A100-80GB GPU Active</span>
+      </div>
+      <div class="header-stat">
+        <span style="color: var(--text-muted);">Inference Latency:</span>
+        <span style="font-family: var(--font-mono); color: var(--clinical-cyan);"><span id="pacs-latency">4</span>ms</span>
+      </div>
+      <div class="header-stat">
+        <span style="color: var(--text-muted);">Model Backbone:</span>
+        <span style="font-weight: 600; color: var(--text-primary);">Qwen3.5-0.8B Nuclear Multimodal VLM</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="dock-btn" onclick="toggleSidebar()" title="Toggle Cohort & Ingestion Drawer (Ctrl+B)">
+        <span id="sidebar-toggle-label">Cohorts</span>
+      </button>
+      <button class="dock-btn" id="btn-agent-island-toggle" onclick="toggleAgentIsland()" title="Toggle AI Copilot Square Island (Ctrl+J)">
+        <span id="agent-toggle-label">AI Copilot</span>
+      </button>
+      <button class="dock-btn" id="btn-diag-island-toggle" onclick="toggleDiagDrawer()" title="Toggle Diagnostic Dossier & XAI (Ctrl+D)">
+        <span id="diag-toggle-label">Diagnostic Island</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Workspace -->
+  <div class="pacs-workspace">
+    <!-- Floating Re-open Cohort Trigger (Visible when island is collapsed) -->
+    <button class="cohort-open-trigger" id="cohort-open-trigger" onclick="toggleSidebar()" title="Browse Patient Cohorts (Ctrl+B)" style="display: none;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+      <span>Cohorts</span>
+    </button>
+
+    <!-- Left Cohort & Ingestion Floating Island -->
+    <aside class="floating-island pacs-sidebar" id="cohort-sidebar" hx-get="/cohort-drawer" hx-trigger="load" hx-swap="innerHTML">
+      <div style="padding: 20px; color: var(--text-muted); font-size: 11px;">Loading Cohort Cases & Server Ingestion...</div>
+    </aside>
+
+    <!-- Center Main Viewport -->
+    <main class="main-stage" id="main-stage">
+      <div class="pacs-empty-state" id="empty-state-banner">
+        <div class="empty-icon-shield">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <rect x="3" y="3" width="18" height="18" rx="4" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+        </div>
+        <h2 class="empty-title">Radiological Workstation Standby</h2>
+        <p class="empty-desc">
+          Select any clinical patient case from the cohort list, enter any server file path, or upload a NIfTI volume.
+          Scans mount instantaneously with synchronized multi-planar DICOM viewing.
+        </p>
+        <div style="display: flex; gap: 10px; margin-top: 6px;">
+          <button class="dock-btn" style="border: 1px solid var(--glass-border); padding: 7px 16px; border-radius: var(--radius-pill); font-size: 11px;"
+                  hx-post="/cases/yunnan_19/select" hx-target="#main-stage" hx-swap="innerHTML">
+            Inspect Clinical Benchmark (Case #19)
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Mobile Navigation Bar for Phone / Tablet Users -->
+<nav class="mobile-pacs-dock" id="mobile-pacs-dock">
+  <button type="button" class="mobile-dock-btn active" id="m-btn-viewer" onclick="switchMobileView('viewer', this)">Viewer</button>
+  <button type="button" class="mobile-dock-btn" id="m-btn-3d" onclick="switchMobileView('3d', this)">3D Voxels</button>
+  <button type="button" class="mobile-dock-btn" id="m-btn-agent" onclick="switchMobileView('agent', this)">AI Copilot</button>
+  <button type="button" class="mobile-dock-btn" id="m-btn-dossier" onclick="switchMobileView('dossier', this)">Dossier</button>
+  <button type="button" class="mobile-dock-btn" id="m-btn-cohorts" onclick="switchMobileView('cohorts', this)">Cohorts</button>
+</nav>
+
+<div id="toast" class="toast-msg">Copied to Clipboard</div>
+
+<script>
+  function switchMobileView(mode, btn) {
+    document.querySelectorAll('.mobile-dock-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+
+    const diagDrawer = document.getElementById("diagnostic-drawer");
+    const agentIsland = document.getElementById("agent-square-island");
+    const cohortSidebar = document.getElementById("cohort-sidebar");
+
+    if (mode === 'viewer') {
+      if (diagDrawer) diagDrawer.classList.add('collapsed');
+      if (agentIsland) agentIsland.classList.add('closed');
+      if (cohortSidebar) cohortSidebar.classList.add('collapsed');
+    } else if (mode === '3d') {
+      if (diagDrawer) {
+        diagDrawer.classList.remove('collapsed');
+        if (typeof switchDrawerTab === 'function') {
+          switchDrawerTab('plot3d-tab', document.getElementById('tab-mesh3d-btn'));
+        }
+        if (typeof init3DTumorPlot === 'function') init3DTumorPlot();
+      }
+      if (agentIsland) agentIsland.classList.add('closed');
+      if (cohortSidebar) cohortSidebar.classList.add('collapsed');
+    } else if (mode === 'agent') {
+      if (agentIsland) agentIsland.classList.remove('closed');
+      if (diagDrawer) diagDrawer.classList.add('collapsed');
+      if (cohortSidebar) cohortSidebar.classList.add('collapsed');
+    } else if (mode === 'dossier') {
+      if (diagDrawer) {
+        diagDrawer.classList.remove('collapsed');
+        if (typeof switchDrawerTab === 'function') {
+          switchDrawerTab('clinical-tab', document.getElementById('tab-clinical-btn'));
+        }
+      }
+      if (agentIsland) agentIsland.classList.add('closed');
+      if (cohortSidebar) cohortSidebar.classList.add('collapsed');
+    } else if (mode === 'cohorts') {
+      if (cohortSidebar) cohortSidebar.classList.remove('collapsed');
+      if (diagDrawer) diagDrawer.classList.add('collapsed');
+      if (agentIsland) agentIsland.classList.add('closed');
+    }
+  }
+
+  function toggleSidebar() {
+    const sb = document.getElementById("cohort-sidebar");
+    if (!sb) return;
+    sb.classList.toggle("collapsed");
+    const isCollapsed = sb.classList.contains("collapsed");
+    const label = document.getElementById("sidebar-toggle-label");
+    if (label) label.innerText = isCollapsed ? "Open Cohorts" : "Close Cohorts";
+    const trigger = document.getElementById("cohort-open-trigger");
+    if (trigger) trigger.style.display = isCollapsed ? "flex" : "none";
+  }
+
+  function toggleDiagDrawer() {
+    const dd = document.getElementById("diagnostic-drawer");
+    if (dd) {
+      dd.classList.toggle("closed");
+      dd.classList.toggle("collapsed");
+      const isClosed = dd.classList.contains("closed") || dd.classList.contains("collapsed");
+      const label = document.getElementById("diag-toggle-label");
+      if (label) label.innerText = "Diagnostic Island";
+      const hudBtn = document.getElementById("btn-toggle-diag-drawer");
+      if (hudBtn) hudBtn.classList.toggle("active", !isClosed);
+    }
+  }
+
+  function toggleAgentIsland() {
+    const ai = document.getElementById("agent-square-island");
+    if (ai) {
+      ai.classList.toggle("closed");
+      const isClosed = ai.classList.contains("closed");
+      const btn = document.getElementById("btn-agent-island-toggle");
+      if (btn) btn.classList.toggle("active", !isClosed);
+      const hudBtn = document.getElementById("btn-toggle-agent-island");
+      if (hudBtn) hudBtn.classList.toggle("active", !isClosed);
+      showToast(isClosed ? "AI Copilot Island Hidden" : "AI Copilot Island Active");
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.innerText = msg || "Copied to Clipboard";
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2200);
+  }
+
+  function copyText(txt) {
+    navigator.clipboard.writeText(txt).then(() => showToast("Clinical Impression Copied to Clipboard!"));
+  }
+
+  // Radiologist keyboard shortcuts
+  window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === "b" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleSidebar(); }
+    if (e.key === "d" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleDiagDrawer(); }
+    if (e.key === "j" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleAgentIsland(); }
+    
+    const slider = document.getElementById("slice-slider");
+    if (slider) {
+      if (e.key === "ArrowUp" || e.key === "ArrowRight") {
+        e.preventDefault();
+        slider.value = Math.min(parseInt(slider.max), parseInt(slider.value) + 1);
+        slider.dispatchEvent(new Event("input"));
+      } else if (e.key === "ArrowDown" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        slider.value = Math.max(parseInt(slider.min), parseInt(slider.value) - 1);
+        slider.dispatchEvent(new Event("input"));
+      }
+    }
+  });
+</script>
+</body>
+</html>

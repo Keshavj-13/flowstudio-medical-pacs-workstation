@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pth
+*.pt
+*.safetensors
+*.bin
+best_model2020.pth
+logs/
+jobs/
+test_reports/
+*.log
+.ipynb_checkpoints/
+.DS_Store
