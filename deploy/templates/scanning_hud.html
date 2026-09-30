@@ -78,7 +78,7 @@
 
   <!-- HTMX Auto-Poller to Check Inference Status and transition to Diagnostic Dossier -->
   <div hx-get="/cases/{{ case.case_id }}/scan-status?model_type={{ model_type }}"
-       hx-trigger="load delay:750ms"
+       hx-trigger="load delay:1500ms"
        hx-target="#main-stage"
        hx-swap="innerHTML">
   </div>

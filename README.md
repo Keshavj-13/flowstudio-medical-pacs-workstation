@@ -9,17 +9,20 @@ FlowStudio PACS is a web workstation for 3D volumetric multi-planar reconstructi
 
 ## 1. Interface
 
-<p align="center">
-  <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="FlowStudio tri-planar slicing and perfusion dynamics">
-  <br>
-  <em>Tri-planar volumetric scrubbing across breast DCE-MRI (Case 19), with window and level contrast adjustment and false-color colormap switching (Inferno and Cyan Hot).</em>
-</p>
-
-<p align="center">
-  <img src="assets/05_yunnan19_vlm_think_stream.png" width="95%" alt="FlowStudio PACS live telemetry">
-  <br>
-  <em>DCE-MRI slice inspection with tumor contour overlay and streaming chain-of-thought clinical reasoning.</em>
-</p>
+<table align="center" width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <b>Tri-planar scrubbing and colormaps</b><br/>
+      <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="Tri-planar volumetric scrubbing and colormap switching" /><br/>
+      <em>Volumetric scrubbing through breast DCE-MRI with window and level contrast adjustment and colormap selection.</em>
+    </td>
+    <td width="50%" align="center">
+      <b>Autonomous scan and 3D segmentation</b><br/>
+      <img src="assets/02_flowstudio_autonomous_think_stream.gif" width="100%" alt="Autonomous volumetric scan and tumor contouring" /><br/>
+      <em>Neural scanline sweep, 3D voxel reconstruction, and surgical contour toggling.</em>
+    </td>
+  </tr>
+</table>
 
 <table align="center" width="100%">
   <tr>
