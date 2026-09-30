@@ -461,12 +461,15 @@ html, body {
 }
 
 .dicom-slice-img {
-  max-width: 92vw;
-  max-height: 88vh;
+  width: 520px;
+  height: 520px;
+  max-width: 82vh;
+  max-height: 82vh;
   object-fit: contain;
   filter: contrast(1.05);
   box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-  border-radius: 2px;
+  border-radius: 4px;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 .canvas-hud-top {

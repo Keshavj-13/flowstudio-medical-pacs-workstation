@@ -11,6 +11,7 @@ from io import BytesIO
 import numpy as np
 import nibabel as nib
 from PIL import Image, ImageDraw
+import matplotlib.cm as cm
 from scipy.ndimage import binary_dilation, binary_erosion
 
 from fastapi import FastAPI, Request, Form, Query, HTTPException, UploadFile, File
@@ -78,6 +79,21 @@ def get_cases_list() -> List[Dict[str, Any]]:
             "dice": dice,
             "dataset": "Synthetic Open Benchmark (Zero PHI)"
         })
+    if Path("/workspace/dataset/19/P2.nii").exists():
+        cases.insert(0, {
+            "case_id": "yunnan_19",
+            "name": "Clinical Case #19 (Yunnan DCE-MRI)",
+            "pathology": "Benign Fibroadenoma (BI-RADS 4)",
+            "birads": 4,
+            "tumor_volume_ml": 30.79,
+            "n_slices": 120,
+            "shape_xyz": [896, 896, 120],
+            "initial_slice": 57,
+            "is_benchmark": True,
+            "has_gt": True,
+            "dice": 0.8926,
+            "dataset": "Yunnan Curated DCE-MRI"
+        })
     # Add any runtime uploaded cases
     for cid, meta in CASE_META_CACHE.items():
         if cid.startswith("upload_"):
@@ -109,6 +125,16 @@ def get_case_meta(case_id: str) -> Dict[str, Any]:
 def get_loaded_volume(case_id: str) -> Optional[np.ndarray]:
     if case_id in VOLUME_CACHE:
         return VOLUME_CACHE[case_id]
+    if case_id == "yunnan_19" and Path("/workspace/dataset/19/P2.nii").exists():
+        try:
+            img = nib.load("/workspace/dataset/19/P2.nii")
+            vol = np.asarray(img.get_fdata(), dtype=np.float32)
+            if vol.ndim == 4:
+                vol = vol[..., 0]
+            VOLUME_CACHE[case_id] = vol
+            return vol
+        except Exception:
+            pass
     inp_path = JOBS_DIR / case_id / "input.nii.gz"
     if inp_path.exists():
         try:
@@ -125,6 +151,16 @@ def get_loaded_volume(case_id: str) -> Optional[np.ndarray]:
 def get_loaded_mask(case_id: str) -> Optional[np.ndarray]:
     if case_id in MASK_CACHE:
         return MASK_CACHE[case_id]
+    if case_id == "yunnan_19" and Path("/workspace/dataset/19/gt.nii").exists():
+        try:
+            m = nib.load("/workspace/dataset/19/gt.nii")
+            mask = np.asarray(m.get_fdata(), dtype=np.float32)
+            if mask.ndim == 4:
+                mask = mask[..., 0]
+            MASK_CACHE[case_id] = mask
+            return mask
+        except Exception:
+            pass
     mask_path = JOBS_DIR / case_id / "mask.nii.gz"
     if mask_path.exists():
         try:
@@ -176,7 +212,16 @@ def render_slice_png(
     base = (norm * 255.0).astype(np.uint8)
     h, w = base.shape
 
-    if lut == "hot":
+    if lut in ["inferno", "viridis", "turbo", "magma", "plasma"]:
+        cmap = getattr(cm, lut)
+        rgba = cmap(norm)
+        rgb = (rgba[..., :3] * 255.0).astype(np.uint8)
+    elif lut == "cyan_hot":
+        rgb = np.zeros((h, w, 3), dtype=np.uint8)
+        rgb[..., 0] = (np.clip(norm * 1.2 - 0.2, 0.0, 1.0) * 255.0).astype(np.uint8)
+        rgb[..., 1] = (norm * 255.0).astype(np.uint8)
+        rgb[..., 2] = (np.clip(norm * 1.4, 0.0, 1.0) * 255.0).astype(np.uint8)
+    elif lut == "hot":
         rgb = np.zeros((h, w, 3), dtype=np.uint8)
         rgb[..., 0] = np.clip(norm * 2.0 * 255.0, 0, 255).astype(np.uint8)
         rgb[..., 1] = np.clip((norm - 0.4) * 2.5 * 255.0, 0, 255).astype(np.uint8)
@@ -186,6 +231,9 @@ def render_slice_png(
         rgb[..., 0] = np.clip(base * 0.9, 0, 255).astype(np.uint8)
         rgb[..., 1] = np.clip(base * 1.0, 0, 255).astype(np.uint8)
         rgb[..., 2] = np.clip(base * 1.15, 0, 255).astype(np.uint8)
+    elif lut == "invert":
+        inv = 255 - base
+        rgb = np.stack([inv, inv, inv], axis=-1)
     else:
         rgb = np.stack([base, base, base], axis=-1)
 
