@@ -9,20 +9,10 @@ FlowStudio PACS is a web workstation for 3D volumetric multi-planar reconstructi
 
 ## 1. Interface
 
-<table align="center" width="100%">
-  <tr>
-    <td width="50%" align="center">
-      <b>Tri-planar scrubbing and colormaps</b><br/>
-      <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="Tri-planar volumetric scrubbing and colormap switching" /><br/>
-      <em>Volumetric scrubbing through breast DCE-MRI with window and level contrast adjustment and colormap selection.</em>
-    </td>
-    <td width="50%" align="center">
-      <b>Autonomous scan and 3D segmentation</b><br/>
-      <img src="assets/02_flowstudio_autonomous_think_stream.gif" width="100%" alt="Autonomous volumetric scan and tumor contouring" /><br/>
-      <em>Neural scanline sweep, 3D voxel reconstruction, and surgical contour toggling.</em>
-    </td>
-  </tr>
-</table>
+| Tri-planar scrubbing and colormaps | Autonomous scan and segmentation | 3D WebGL solid voxel orbit |
+| :---: | :---: | :---: |
+| <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="Tri-planar scrubbing" /> | <img src="assets/02_flowstudio_autonomous_think_stream.gif" width="100%" alt="Autonomous scan" /> | <img src="assets/03_flowstudio_3d_webgl_orbit.gif" width="100%" alt="3D WebGL orbit" /> |
+| Volumetric slice scrubbing with window/level adjustment and colormaps. | Neural scanline sweep, deep feature extraction, and contour toggling. | Three.js WebGL orbit with synchronized 2D slice cutting plane. |
 
 <table align="center" width="100%">
   <tr>
