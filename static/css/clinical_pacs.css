@@ -1305,6 +1305,8 @@ html, body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
+  min-height: fit-content;
 }
 
 .think-header {

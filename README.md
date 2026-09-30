@@ -9,10 +9,19 @@ FlowStudio PACS is a web workstation for 3D volumetric multi-planar reconstructi
 
 ## 1. Interface
 
+### Volumetric navigation and 3D rendering
+
 | Tri-planar scrubbing and colormaps | Autonomous scan and segmentation | 3D WebGL solid voxel orbit |
 | :---: | :---: | :---: |
 | <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="Tri-planar scrubbing" /> | <img src="assets/02_flowstudio_autonomous_think_stream.gif" width="100%" alt="Autonomous scan" /> | <img src="assets/03_flowstudio_3d_webgl_orbit.gif" width="100%" alt="3D WebGL orbit" /> |
 | Volumetric slice scrubbing with window/level adjustment and colormaps. | Neural scanline sweep, deep feature extraction, and contour toggling. | Three.js WebGL orbit with synchronized 2D slice cutting plane. |
+
+### Diagnostic intelligence and telemetry
+
+| Vision-language chain-of-thought stream | Continuous cine loop and caliper tool |
+| :---: | :---: |
+| <img src="assets/04_flowstudio_vlm_chain_of_thought.gif" width="100%" alt="VLM reasoning stream" /> | <img src="assets/05_flowstudio_cine_loop_volumetric.gif" width="100%" alt="Volumetric cine loop and caliper" /> |
+| Multimodal reasoning with kinetic analysis and longitudinal interval checks. | 10 FPS continuous cross-sectional sweep and sub-millimeter lesion caliper tool. |
 
 <table align="center" width="100%">
   <tr>
