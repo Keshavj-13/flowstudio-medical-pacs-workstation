@@ -72,9 +72,7 @@ def get_inference_engine(model_type: str):
     validate_model(model_type)
     try:
         from genuine_engine import GenuineInferenceManager
-        if case.get("organ") == "unspecified":
-        raise HTTPException(status_code=422, detail="Inference requires configured organ and modality metadata.")
-    engine = get_inference_engine(model_type)
+        engine = GenuineInferenceManager.get_instance()
         if model_type == "cice_beatnet":
             engine.load_beatnet()
         else:
@@ -806,7 +804,9 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
             pass
 
     # EXECUTE GENUINE GPU INFERENCE
-    engine = GenuineInferenceManager.get_instance()
+    if case.get("organ") == "unspecified":
+        raise HTTPException(status_code=422, detail="Inference requires configured organ and modality metadata.")
+    engine = get_inference_engine(model_type)
     t0 = time.perf_counter()
 
     if model_type == "qwen_nuclear_vlm":
