@@ -5,4 +5,8 @@ jinja2>=3.1.4,<4
 nibabel>=5.2,<6
 pillow>=10,<13
 scipy>=1.11,<2
-numpy>=1.26,<3
+numpy>=1.26,<2
+monai==1.4.0
+requests>=2.31,<3
+huggingface-hub<2
+# Install a stable CUDA PyTorch build separately; audited with torch 2.6.0 and torchvision 0.21.0.

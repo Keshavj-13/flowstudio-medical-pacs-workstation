@@ -38,7 +38,9 @@ if str(VLM_DIR / "code") not in sys.path:
     sys.path.insert(0, str(VLM_DIR / "code"))
 
 from cice_beatnet import CICE_BEATNet, CONCEPT_NAMES, MODALITY_MAP, ORGAN_MAP
-from monai.networks.nets import FlexibleUNet
+# Match organ IDs used by the persisted CICE training dataset.
+ORGAN_MAP = {**ORGAN_MAP, "liver": 7, "hepatic": 7, "pancreas": 8}
+from legacy_beatnet import AttentionAllDecoderUNet
 from monai.inferers import sliding_window_inference
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -84,7 +86,10 @@ class GenuineInferenceManager:
             deep_supervision=False
         )
         state_dict = ckpt.get("model_state_dict", ckpt)
-        model.load_state_dict(state_dict, strict=False)
+        loaded = model.load_state_dict(state_dict, strict=False)
+        unexpected = [key for key in loaded.unexpected_keys if not key.startswith("deep_sup_heads.")]
+        if loaded.missing_keys or unexpected:
+            raise RuntimeError(f"CICE checkpoint mismatch: missing={loaded.missing_keys}, unexpected={unexpected}")
         model.to(self.device)
         model.eval()
 
@@ -105,15 +110,22 @@ class GenuineInferenceManager:
         t0 = time.time()
         sd = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
 
-        model = FlexibleUNet(
+        model = AttentionAllDecoderUNet(
             spatial_dims=3,
             in_channels=1,
             out_channels=1,
             backbone="resnet50",
             pretrained=False,
             decoder_channels=(512, 256, 128, 64, 32),
+            norm=("instance", {"affine": True}),
+            act=("leakyrelu", {"inplace": True, "negative_slope": 0.01}),
+            dropout=0.2,
+            decoder_bias=False,
+            upsample="deconv",
+            interp_mode="trilinear",
+            is_pad=False,
         )
-        model.load_state_dict(sd, strict=False)
+        model.load_state_dict(sd, strict=True)
         model.to(self.device)
         model.eval()
 
@@ -191,21 +203,16 @@ class GenuineInferenceManager:
 
             x_inp = torch.from_numpy(np.stack([ch0, ch1], axis=0)).unsqueeze(0).float().to(self.device)
 
-            # Localize lesion center: use ground truth if available, else parenchymal subtraction peak
-            if gt_mask is not None and np.sum(gt_mask > 0) > 0:
-                gt_dhw = np.transpose(gt_mask, (2, 0, 1))
-                fg = np.argwhere(gt_dhw > 0)
-                cd, ch, cw = fg.mean(axis=0).astype(int)
+            # Localization uses image data only; reference masks are for scoring.
+            if secondary_volume is not None:
+                sub = np.maximum(0.0, volume - secondary_volume)
+                margin = 20
+                sub_inner = np.zeros_like(sub)
+                sub_inner[margin:H-margin, margin:W-margin, :] = sub[margin:H-margin, margin:W-margin, :]
+                top = np.argwhere(sub_inner > np.percentile(sub_inner, 99.5))
+                ch, cw, cd = top.mean(axis=0).astype(int) if len(top) > 0 else (H//2, W//2, D//2)
             else:
-                if secondary_volume is not None:
-                    sub = np.maximum(0.0, volume - secondary_volume)
-                    margin = 20
-                    sub_inner = np.zeros_like(sub)
-                    sub_inner[margin:H-margin, margin:W-margin, :] = sub[margin:H-margin, margin:W-margin, :]
-                    top = np.argwhere(sub_inner > np.percentile(sub_inner, 99.5))
-                    ch, cw, cd = top.mean(axis=0).astype(int) if len(top) > 0 else (H//2, W//2, D//2)
-                else:
-                    cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
+                cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
 
             t_D, t_H, t_W = 32, 96, 96
             s_d = max(0, min(cur_D - t_D, cd - t_D // 2))
@@ -285,13 +292,8 @@ class GenuineInferenceManager:
 
             x_inp = torch.from_numpy(np.stack([ch0, ch1], axis=0)).unsqueeze(0).float().to(self.device)
 
-            # Center patch around ground truth target lesion or tissue center
-            if gt_mask is not None and np.sum(gt_mask > 0) > 0:
-                gt_dhw = np.transpose(gt_mask, (2, 0, 1))
-                fg = np.argwhere(gt_dhw > 0)
-                cd, ch, cw = fg.mean(axis=0).astype(int)
-            else:
-                cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
+            # Localization uses image data only; reference masks are for scoring.
+            cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
 
             t_D, t_H, t_W = 32, 96, 96
             pad_d = max(0, t_D - cur_D)
@@ -369,7 +371,7 @@ class GenuineInferenceManager:
             "gt_voxels": metrics["gt_voxels"],
             "genuine_3d_dice": metrics["dice_3d"],
             "roi_dice": metrics.get("roi_dice", metrics["dice_3d"]),
-            "validation_expected_dice": metrics.get("validation_expected_dice", 0.8000),
+            "validation_expected_dice": metrics.get("validation_expected_dice"),
             "iou_3d": metrics["iou_3d"],
             "has_gt": metrics["has_gt"],
             "predicted_depth_slices": depth_span,
@@ -455,7 +457,7 @@ class GenuineInferenceManager:
             "gt_voxels": metrics["gt_voxels"],
             "genuine_3d_dice": metrics["dice_3d"],
             "roi_dice": metrics.get("roi_dice", metrics["dice_3d"]),
-            "validation_expected_dice": metrics.get("validation_expected_dice", 0.8000),
+            "validation_expected_dice": metrics.get("validation_expected_dice"),
             "iou_3d": metrics["iou_3d"],
             "has_gt": metrics["has_gt"],
             "predicted_depth_slices": depth_span,
@@ -643,7 +645,7 @@ class GenuineInferenceManager:
             "gt_voxels": metrics["gt_voxels"],
             "genuine_3d_dice": metrics["dice_3d"],
             "roi_dice": metrics.get("roi_dice", metrics["dice_3d"]),
-            "validation_expected_dice": metrics.get("validation_expected_dice", 0.8000),
+            "validation_expected_dice": metrics.get("validation_expected_dice"),
             "iou_3d": metrics["iou_3d"],
             "has_gt": metrics["has_gt"],
             "predicted_depth_slices": [z_low, z_high],
@@ -719,7 +721,7 @@ class GenuineInferenceManager:
             "gt_voxels": metrics["gt_voxels"],
             "genuine_3d_dice": metrics["dice_3d"],
             "roi_dice": metrics.get("roi_dice", metrics["dice_3d"]),
-            "validation_expected_dice": metrics.get("validation_expected_dice", 0.8000),
+            "validation_expected_dice": metrics.get("validation_expected_dice"),
             "iou_3d": metrics["iou_3d"],
             "has_gt": metrics["has_gt"],
             "predicted_depth_slices": [z_s, z_e],
@@ -745,23 +747,14 @@ class GenuineInferenceManager:
         crop_shape: Optional[Tuple[int, int, int]] = None
     ) -> Dict[str, Any]:
         pred_vox = int(np.sum(pred_mask > 0))
+        if pixdim is not None:
+            voxel_volume_ml = float(np.prod(pixdim[:3])) / 1000.0
         pred_vol_ml = round(float(pred_vox * voxel_volume_ml), 2)
 
-        # Historical validation benchmark lookup from validation_metrics_by_dataset.json
-        BENCHMARK_LOOKUP = {
-            "breast": 0.8723,
-            "brain": 0.9364,
-            "spleen": 0.8905,
-            "prostate": 0.7934,
-            "colon": 0.4491,
-            "liver": 0.2624,
-            "pancreas": 0.2302,
-            "lung": 0.2583,
-            "pan_body": 0.9898
-        }
-        val_expected = BENCHMARK_LOOKUP.get(organ.lower(), 0.8000)
+        # Stored cohort scores cannot be assigned to this case/checkpoint.
+        val_expected = None
 
-        if gt_mask is None or np.sum(gt_mask > 0) == 0:
+        if gt_mask is None:
             return {
                 "has_gt": False,
                 "pred_voxels": pred_vox,
@@ -777,10 +770,10 @@ class GenuineInferenceManager:
         gt_vox = int(np.sum(gt_mask > 0))
         inter = int(np.sum((pred_mask > 0) & (gt_mask > 0)))
         denom = pred_vox + gt_vox
-        dice = round(float(2.0 * inter / denom), 4) if denom > 0 else 0.0
+        dice = round(float(2.0 * inter / denom), 4) if denom > 0 else 1.0
 
         union = denom - inter
-        iou = round(float(inter / union), 4) if union > 0 else 0.0
+        iou = round(float(inter / union), 4) if union > 0 else 1.0
 
         # ROI Dice calculation: physical field-of-view matching validation benchmark
         coords = np.argwhere(gt_mask > 0)

@@ -102,3 +102,7 @@ uvicorn server:app --host 0.0.0.0 --port 8070
 # Or run the self-contained deployment server
 python deploy/app.py
 ```
+
+## Measured model performance
+
+See [the 11 November 2026 model audit](docs/MODEL_AUDIT_20261111.md) for fresh measurements, restored data locations, checkpoint provenance and reproduction steps. Segmentation overlap is distinct from cancer diagnosis accuracy.

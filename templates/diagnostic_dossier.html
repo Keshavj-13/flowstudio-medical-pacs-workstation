@@ -61,9 +61,9 @@
           {% endif %}
         </div>
         <div class="hud-pill">
-          <span class="label">Bench:</span>
+          <span class="label">History:</span>
           <span class="val" style="color: #a5b4fc; font-weight: 600;">
-            {{ (reasoning.validation_expected_dice * 100)|round(1) }}%
+            {% if reasoning.validation_expected_dice is not none %}{{ (reasoning.validation_expected_dice * 100)|round(1) }}%{% else %}Unverified{% endif %}
           </span>
         </div>
         <div class="hud-pill">
@@ -266,7 +266,7 @@
           <div class="stat-card">
             <span class="stat-label">Model Architecture</span>
             <span class="stat-val" style="font-size: 11px; color: var(--clinical-cyan);">{{ reasoning.model_name }}</span>
-            <span class="stat-sub">Latency: {{ reasoning.latency_ms }} ms · NVIDIA A100</span>
+            <span class="stat-sub">Latency: {{ reasoning.latency_ms }} ms · GPU inference</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">Full-Volume 3D Dice</span>
@@ -281,21 +281,21 @@
             {% endif %}
           </div>
           <div class="stat-card">
-            <span class="stat-label">Validation ROI Dice</span>
+            <span class="stat-label">Reference-window Dice</span>
             {% if reasoning.has_gt and reasoning.roi_dice is not none %}
             <span class="stat-val" style="color: {% if reasoning.roi_dice >= 0.7 %}var(--clinical-emerald){% elif reasoning.roi_dice >= 0.4 %}var(--clinical-cyan){% else %}var(--clinical-amber){% endif %};">
               {{ (reasoning.roi_dice * 100)|round(2) }}%
             </span>
-            <span class="stat-sub">Lesion Window · Validation Match</span>
+            <span class="stat-sub">Reference-centered window; excludes distant false positives</span>
             {% else %}
             <span class="stat-val" style="color: var(--text-muted); font-size: 13px;">N/A</span>
             <span class="stat-sub">Unlabeled</span>
             {% endif %}
           </div>
           <div class="stat-card">
-            <span class="stat-label">Validation Benchmark</span>
-            <span class="stat-val" style="color: #a5b4fc;">{{ (reasoning.validation_expected_dice * 100)|round(2) }}%</span>
-            <span class="stat-sub">Historical Cohort Median</span>
+            <span class="stat-label">Historical score</span>
+            <span class="stat-val" style="color: #a5b4fc;">{% if reasoning.validation_expected_dice is not none %}{{ (reasoning.validation_expected_dice * 100)|round(2) }}%{% else %}Unverified{% endif %}</span>
+            <span class="stat-sub">Checkpoint provenance unverified</span>
           </div>
           <div class="stat-card">
             <span class="stat-label">Tumor Volume</span>
