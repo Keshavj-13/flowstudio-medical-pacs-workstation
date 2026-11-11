@@ -1,0 +1,23 @@
+{% include "case_stage.html" %}
+<aside id="diagnostic-drawer" class="results-panel" aria-label="Segmentation results">
+  <div class="sidebar-header">
+    <div><span class="workspace-eyebrow">SEGMENTATION RESULT</span><h2 class="sidebar-title">{{ case.organ|replace("_", " ")|title }}</h2></div>
+    <button type="button" class="island-ctrl-btn" onclick="toggleDiagDrawer()" aria-label="Close results">&times;</button>
+  </div>
+  <div class="result-content">
+    <p class="result-model">{{ metrics.model_name }}</p>
+    <div class="result-grid">
+      <div class="result-stat"><span>Segmented volume</span><strong>{{ metrics.pred_volume_ml }} <small>mL</small></strong></div>
+      <div class="result-stat"><span>3D Dice</span><strong>{{ (metrics.genuine_3d_dice * 100)|round(2) ~ "%" if metrics.genuine_3d_dice is not none else "N/A" }}</strong></div>
+      <div class="result-stat"><span>Predicted voxels</span><strong>{{ metrics.pred_voxels }}</strong></div>
+      <div class="result-stat"><span>Inference time</span><strong>{{ (metrics.total_latency_ms / 1000)|round(2) }} <small>s</small></strong></div>
+    </div>
+    <p class="library-summary">Dice is calculated only when a reference mask exists. The displayed overlay is the saved prediction.</p>
+    <dl class="result-details">
+      <dt>Axial extent</dt><dd>{{ metrics.predicted_depth_slices[0] }}–{{ metrics.predicted_depth_slices[1] }}</dd>
+      <dt>Reference voxels</dt><dd>{{ metrics.gt_voxels if reasoning.has_gt else "Not available" }}</dd>
+      <dt>3D IoU</dt><dd>{{ metrics.iou_3d if metrics.iou_3d is not none else "Not available" }}</dd>
+    </dl>
+  </div>
+</aside>
+<script>toggleOverlay(document.getElementById("btn-overlay-toggle"));</script>

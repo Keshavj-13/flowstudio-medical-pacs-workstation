@@ -1,0 +1,74 @@
+/* Workstation controls and responsive layout. */
+:root { --clinical-cyan: #79c6df; --text-muted: #9aaabd; --text-dim: #8494a8; }
+html, body, .pacs-app-container { height: 100dvh; }
+.pacs-app-container { background: #0b111a; }
+.pacs-header { opacity: 1; background: #101925; border-bottom-color: #29394c; }
+.pacs-header:hover { background: #101925; box-shadow: none; }
+.brand-title { text-transform: none; letter-spacing: -.02em; font-size: 15px; }
+.brand-badge { border-radius: 5px; font-size: 9px; letter-spacing: .06em; }
+.pacs-sidebar { background: #111b28; border-color: #2a3b4e; box-shadow: 0 12px 36px #0005; backdrop-filter: none; }
+.sidebar-header { display: flex; justify-content: space-between; align-items: center; min-height: 78px; padding: 18px; }
+.sidebar-title { display: block; font-size: 16px; font-weight: 600; text-transform: none; margin-top: 5px; }
+.workspace-eyebrow { font-size: 10px; font-weight: 650; letter-spacing: .15em; color: #91b9ca; }
+.library-tools { padding: 0 16px 14px; border-bottom: 1px solid #263649; }
+.library-summary { font-size: 12px; line-height: 1.6; color: #9aaabd; margin: 7px 0; }
+.field-label { display: block; color: #c5d3e1; font-size: 11px; margin: 12px 0 6px; }
+.path-input { min-height: 36px; font-size: 12px; border-color: #33465e; }
+input[type=file] { width: 100%; font-size: 11px; color: #aab9c9; }
+input[type=file]::file-selector-button { background: #203449; color: #d6e8f1; border: 1px solid #3b526a; border-radius: 5px; padding: 7px 9px; margin-right: 8px; cursor: pointer; }
+.upload-volume-btn { width: 100%; min-height: 34px; border: 1px solid #3c596f; margin-top: 8px; }
+.study-card { gap: 10px; padding: 14px; background: #142130; border: 1px solid #2c4055; border-radius: 8px; align-items: stretch; text-align: left; }
+.study-card[hidden] { display: none; }
+.study-card:not(:disabled):hover { background: #1a2d40; border-color: #6cabc4; transform: none; }
+.study-card:disabled { opacity: .58; cursor: default; }
+.study-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.study-organ { color: #b8d5e3; font-size: 11px; font-weight: 650; }
+.study-state { font-size: 10px; color: #aeb8c4; }
+.study-state.available { color: #91d4b6; }
+.case-name { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.case-meta { flex-wrap: wrap; font-size: 10px; gap: 8px; }
+.empty-title { max-width: 540px; font-size: clamp(27px, 3.2vw, 44px); line-height: 1.15; letter-spacing: -.04em; font-weight: 550; }
+.empty-desc { font-size: 14px; line-height: 1.8; max-width: 440px; color: #9aaabd; }
+.pacs-empty-state { padding: 32px; gap: 18px; }
+.dock-btn, .btn-start-scan { min-height: 32px; border-radius: 6px; }
+.btn-start-scan { background: #7bc5de; color: #08151e; box-shadow: none; font-weight: 650; }
+button:disabled { cursor: default; opacity: .55; }
+.htmx-request.btn-start-scan, button.htmx-request { opacity: .6; cursor: progress; }
+.canvas-hud-top { gap: 8px; flex-wrap: wrap; }
+.hud-pill-group { flex-wrap: wrap; }
+.radiological-dock { max-width: calc(100% - 32px); overflow-x: auto; }
+.radiological-dock > * { flex-shrink: 0; }
+.header-stat .dot { background: #9aaabd; box-shadow: none; }
+.header-stat .dot[data-state=online] { background: #91d4b6; }
+.header-stat .dot[data-state=offline] { background: #e5a1a1; }
+.toast-msg { max-width: min(560px, calc(100vw - 32px)); white-space: normal; line-height: 1.6; padding: 14px 18px; }
+:focus-visible { outline: 2px solid #98dbf2; outline-offset: 4px; }
+.skip-link { position: fixed; top: -80px; left: 16px; z-index: 1000; background: #d6eef7; color: #102230; padding: 12px; }
+.skip-link:focus { top: 8px; }
+.results-panel { position: absolute; right: 14px; top: 14px; width: 320px; max-height: calc(100% - 100px); overflow-y: auto; z-index: 30; background: #111b28; border: 1px solid #2a3b4e; border-radius: 12px; box-shadow: 0 12px 36px #0005; }
+.results-panel.closed, .results-panel.collapsed { display: none; }
+.result-content { padding: 0 18px 18px; }
+.result-model { font-size: 12px; line-height: 1.6; color: #c3d5e1; margin-bottom: 16px; }
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.result-stat { padding: 12px; border: 1px solid #2c4055; border-radius: 7px; }
+.result-stat span { display: block; font-size: 10px; color: #9aaabd; margin-bottom: 8px; }
+.result-stat strong { font-size: 21px; font-weight: 550; color: #d7ecf5; font-variant-numeric: tabular-nums; }
+.result-stat small { font-size: 11px; color: #9aaabd; }
+.result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 11px; margin: 18px 0; }
+.result-details dt { color: #9aaabd; }
+.result-details dd { text-align: right; }
+@media (max-width: 1220px) { .header-center-info { display: none; } }
+@media (max-width: 860px) {
+  .pacs-header { min-height: 52px; height: 52px; }
+  .header-actions { display: none; }
+  .pacs-sidebar { top: 60px !important; height: calc(100dvh - 132px) !important; max-height: calc(100dvh - 132px) !important; }
+  .pacs-empty-state { padding: 24px; padding-bottom: 90px; }
+  .canvas-hud-top { max-height: 30dvh; overflow-y: auto; }
+  .radiological-dock { max-width: calc(100vw - 16px); }
+  .mobile-pacs-dock { padding-bottom: env(safe-area-inset-bottom); }
+  .toast-msg { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .results-panel { position: fixed; left: 8px; right: 8px; top: 60px; width: auto; max-height: calc(100dvh - 132px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

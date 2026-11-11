@@ -1,0 +1,41 @@
+name: Workstation checks
+on:
+  push:
+    branches: [main, codex/workstation-demo-readiness]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  viewer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: python -m pip install -r requirements.txt pytest httpx playwright
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m compileall -q server.py genuine_engine.py
+      - run: python -m pytest -q tests/test_workstation.py tests/test_browser.py
+        env:
+          RUN_BROWSER_TESTS: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: workstation-screenshots
+          path: playwright-results/
+          if-no-files-found: ignore
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install -r requirements.txt monai pytest httpx
+      - run: python -m pytest -q tests/test_metrics.py

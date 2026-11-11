@@ -28,16 +28,20 @@ import nibabel as nib
 from scipy.ndimage import label, find_objects
 
 # Path bindings to research repositories
-BEATNET_DIR = Path("/workspace/beatnet_v3_asymptotic_ablation")
-VLM_DIR = Path("/workspace/qwen_interwoven_nuclear_80dice_training")
-SEG_DEMO_DIR = Path("/workspace/seg_demo")
+BEATNET_DIR = Path(os.environ.get("BEATNET_DIR", "/workspace/beatnet_v3_asymptotic_ablation"))
+VLM_DIR = Path(os.environ.get("VLM_DIR", "/workspace/qwen_interwoven_nuclear_80dice_training"))
+SEG_DEMO_DIR = Path(os.environ.get("SEG_DEMO_DIR", "/workspace/seg_demo"))
 
 if str(BEATNET_DIR) not in sys.path:
     sys.path.insert(0, str(BEATNET_DIR))
 if str(VLM_DIR / "code") not in sys.path:
     sys.path.insert(0, str(VLM_DIR / "code"))
 
-from cice_beatnet import CICE_BEATNet, CONCEPT_NAMES, MODALITY_MAP, ORGAN_MAP
+try:
+    from cice_beatnet import CICE_BEATNet, CONCEPT_NAMES, MODALITY_MAP, ORGAN_MAP
+except ImportError:
+    CICE_BEATNet = None
+    CONCEPT_NAMES, MODALITY_MAP, ORGAN_MAP = [], {}, {}
 from monai.networks.nets import FlexibleUNet
 from monai.inferers import sliding_window_inference
 
@@ -68,6 +72,8 @@ class GenuineInferenceManager:
         if "cice_beatnet" in self.loaded_models and self.beatnet_model is not None:
             return self.beatnet_model
 
+        if CICE_BEATNet is None:
+            raise RuntimeError("CICE research checkout unavailable; configure BEATNET_DIR.")
         ckpt_path = BEATNET_DIR / "checkpoints" / "best_cice_multitask.pth"
         if not ckpt_path.exists():
             ckpt_path = BEATNET_DIR / "checkpoints" / "best_real_beatnet.pth"
@@ -741,6 +747,12 @@ class GenuineInferenceManager:
         pixdim: Optional[Tuple[float, float, float]] = None,
         crop_shape: Optional[Tuple[int, int, int]] = None
     ) -> Dict[str, Any]:
+        if pixdim is not None and len(pixdim) >= 3:
+            spacing = np.asarray(pixdim[:3], dtype=float)
+            if np.all(np.isfinite(spacing)) and np.all(spacing > 0):
+                voxel_volume_ml = float(np.prod(spacing)) / 1000.0
+        if gt_mask is not None and pred_mask.shape != gt_mask.shape:
+            raise ValueError("Prediction and reference mask must use the same voxel grid.")
         pred_vox = int(np.sum(pred_mask > 0))
         pred_vol_ml = round(float(pred_vox * voxel_volume_ml), 2)
 
@@ -758,7 +770,7 @@ class GenuineInferenceManager:
         }
         val_expected = BENCHMARK_LOOKUP.get(organ.lower(), 0.8000)
 
-        if gt_mask is None or np.sum(gt_mask > 0) == 0:
+        if gt_mask is None:
             return {
                 "has_gt": False,
                 "pred_voxels": pred_vox,
@@ -774,10 +786,10 @@ class GenuineInferenceManager:
         gt_vox = int(np.sum(gt_mask > 0))
         inter = int(np.sum((pred_mask > 0) & (gt_mask > 0)))
         denom = pred_vox + gt_vox
-        dice = round(float(2.0 * inter / denom), 4) if denom > 0 else 0.0
+        dice = round(float(2.0 * inter / denom), 4) if denom > 0 else 1.0
 
         union = denom - inter
-        iou = round(float(inter / union), 4) if union > 0 else 0.0
+        iou = round(float(inter / union), 4) if union > 0 else 1.0
 
         # ROI Dice calculation: physical field-of-view matching validation benchmark
         coords = np.argwhere(gt_mask > 0)

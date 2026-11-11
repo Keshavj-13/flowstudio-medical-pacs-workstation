@@ -1,0 +1,39 @@
+<div class="sidebar-header">
+  <div><span class="workspace-eyebrow">CASE LIBRARY</span><h2 class="sidebar-title">Studies &amp; volumes</h2></div>
+  <button class="island-ctrl-btn" type="button" onclick="toggleSidebar()" aria-label="Close case library">&times;</button>
+</div>
+<div class="library-tools">
+  <p class="library-summary">{{ cases|selectattr("available")|list|length }} of {{ cases|length }} studies available on this server</p>
+  <label class="field-label" for="cohort-search">Find a study</label>
+  <input class="path-input" id="cohort-search" type="search" placeholder="Search organ, dataset, or case…" oninput="filterWorkstationCases(this.value)">
+  <form hx-post="/cases/upload" hx-encoding="multipart/form-data" hx-target="#main-stage" hx-swap="innerHTML" hx-disabled-elt="find button">
+    <label class="field-label" for="nifti-upload">Open a local volume</label>
+    <input id="nifti-upload" name="file" type="file" accept=".nii,.nii.gz" required aria-describedby="upload-help">
+    <p id="upload-help" class="library-summary">NIfTI · up to 512 MiB · uploaded volumes open in viewing mode</p>
+    <button class="dock-btn upload-volume-btn" type="submit">Open volume</button>
+  </form>
+</div>
+<div class="cohort-list" id="cohort-items">
+  {% for c in cases %}
+  <button type="button" class="case-card study-card" data-search="{{ (c.name ~ ' ' ~ c.organ ~ ' ' ~ c.dataset)|lower }}"
+          data-case-id="{{ c.case_id }}" hx-post="/cases/{{ c.case_id }}/select" hx-target="#main-stage" hx-swap="innerHTML" hx-disabled-elt="this"
+          {% if not c.available %}disabled title="Dataset is not mounted on this server"{% endif %}>
+    <div class="study-card-top"><span class="study-organ">{{ c.organ|replace("_", " ")|title }}</span>
+      <span class="study-state {% if c.available %}available{% endif %}">{{ "Available" if c.available else "Not mounted" }}</span></div>
+    <span class="case-name">{{ c.name }}</span>
+    <div class="case-meta"><span>{{ c.modality|replace("_", " ")|upper }}</span><span>{{ c.n_slices }} slices</span><span>{{ c.dataset }}</span></div>
+  </button>
+  {% endfor %}
+  <p id="no-study-matches" class="library-summary" hidden>No matching studies.</p>
+</div>
+<script>
+  function filterWorkstationCases(value) {
+    var term = value.trim().toLowerCase(), visible = 0;
+    document.querySelectorAll(".study-card").forEach(function(card) {
+      var matches = card.dataset.search.includes(term);
+      card.hidden = !matches;
+      if (matches) visible++;
+    });
+    document.getElementById("no-study-matches").hidden = visible > 0;
+  }
+</script>

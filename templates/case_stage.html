@@ -8,7 +8,7 @@
       </div>
       <div class="hud-pill">
         <span class="label">Modality:</span>
-        <span class="val">DCE-MRI (5-Phase)</span>
+        <span class="val">{{ case.modality|replace("_", " ")|upper }} · {{ case.organ|replace("_", " ")|title }}</span>
       </div>
       <div class="hud-pill">
         <span class="label">Matrix:</span>
@@ -29,17 +29,20 @@
         Mask: <span id="overlay-state-label" style="color: var(--text-muted);">OFF</span>
       </button>
 
-      <select id="model-select" name="model_type" class="dock-btn" style="background: rgba(12,17,28,0.85); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: var(--radius-pill); color: var(--text-primary); font-size: 11px;">
-        <option value="qwen_nuclear_vlm" selected>Backbone: Qwen3.5 Multimodal VLM</option>
-        <option value="flexible_unet">Backbone: FlexibleUNet Baseline</option>
+      <select aria-label="Segmentation model" id="model-select" name="model_type" class="dock-btn" style="background: rgba(12,17,28,0.85); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: var(--radius-pill); color: var(--text-primary); font-size: 11px;">
+        <option value="cice_beatnet" selected>CICE-BEATNet · Multi-organ 3D</option>
+        <option value="legacy_beatnet">Legacy BEATNet · FlexibleUNet</option>
+        <option value="qwen_nuclear_vlm" disabled>VLM · Use the separate reasoning studio</option>
       </select>
 
       <button class="btn-start-scan" id="start-scan-btn"
               hx-post="/cases/{{ case.case_id }}/scan"
+              hx-disabled-elt="this"
+              {% if case.organ == "unspecified" %}disabled title="Viewing only: inference requires organ and modality metadata."{% endif %}
               hx-include="#model-select"
               hx-target="#main-stage"
               hx-swap="innerHTML">
-        <span>Scan</span>
+        <span>Run segmentation</span>
       </button>
     </div>
   </div>
@@ -50,7 +53,7 @@
       <img id="dicom-slice-img"
            class="dicom-slice-img"
            src="/cases/{{ case.case_id }}/slice?plane=axial&index={{ case.initial_slice }}&overlay=0&lut=default"
-           alt="DCE-MRI Slice" />
+           alt="{{ case.organ|title }} {{ case.modality|replace('_', ' ') }} slice" />
     </div>
   </div>
 
@@ -60,7 +63,7 @@
     <div class="dock-slider-wrap">
       <span style="font-size: 10px; color: var(--text-muted); text-transform: uppercase;">Slice</span>
       <input type="range" id="slice-slider" class="dock-slider"
-             min="0" max="{{ case.shape_xyz[2] - 1 }}" value="{{ case.initial_slice }}"
+             aria-label="Slice index" min="0" max="{{ case.shape_xyz[2] - 1 }}" value="{{ case.initial_slice }}"
              oninput="updateSlice(this.value)" />
       <span class="dock-slice-readout" id="slice-index-label">Z: {{ case.initial_slice }}</span>
     </div>
@@ -109,11 +112,13 @@
   currentContour = 0;
 
   // Auto-dismiss cohort island when patient scan loads to give edge-to-edge canvas
-  const cohortIsland = document.getElementById("cohort-sidebar");
+  var cohortIsland = document.getElementById("cohort-sidebar");
   if (cohortIsland && !cohortIsland.classList.contains("collapsed")) {
     cohortIsland.classList.add("collapsed");
     const sbLabel = document.getElementById("sidebar-toggle-label");
-    if (sbLabel) sbLabel.innerText = "Cohorts";
+    if (sbLabel) sbLabel.innerText = "Open Cohorts";
+    var cohortTrigger = document.getElementById("cohort-open-trigger");
+    if (cohortTrigger) cohortTrigger.style.display = "flex";
   }
 
   function toggleOverlay(btn) {
@@ -148,7 +153,7 @@
     img.src = url;
     document.getElementById("slice-index-label").innerText = `Z: ${currentSlice}`;
     const pill = document.getElementById("top-slice-pill");
-    if (pill) pill.innerText = `Z = ${currentSlice} / {{ case.shape_xyz[2] - 1 }}`;
+    if (pill) pill.innerText = `${currentPlane}: ${currentSlice} / ${document.getElementById("slice-slider").max}`;
   }
 
   function updateSlice(val) {
@@ -185,7 +190,7 @@
   }
 
   // Mousewheel slice scrolling
-  const viewerArea = document.getElementById("viewer-canvas-area");
+  var viewerArea = document.getElementById("viewer-canvas-area");
   if (viewerArea) {
     viewerArea.addEventListener("wheel", (e) => {
       e.preventDefault();
