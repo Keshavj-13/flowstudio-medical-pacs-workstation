@@ -26,7 +26,7 @@ def test_select_twice_search_upload_and_mobile(workstation):
     artifacts.mkdir(exist_ok=True)
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch()
+            browser = playwright.chromium.launch(channel=os.environ.get("PLAYWRIGHT_CHANNEL") or None)
             page = browser.new_page(viewport={"width": 1440, "height": 1000})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
