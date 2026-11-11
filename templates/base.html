@@ -13,6 +13,7 @@
   <!-- JavaScript Dependencies (Local HTMX & Three.js) -->
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/three.min.js"></script>
+  <link rel="stylesheet" href="/static/css/readability.css">
 </head>
 <body>
   <div class="pacs-app-container">
@@ -37,7 +38,7 @@
       <div class="header-center-info">
         <div class="header-stat">
           <span class="dot"></span>
-          <span>GPU ACCELERATION: NVIDIA CUDA (ACTIVE)</span>
+          <span>Viewer online · models checked on scan</span>
         </div>
         <div class="header-stat">
           <span style="color: var(--text-muted);">|</span>
@@ -155,15 +156,6 @@
       const target = evt.detail.target;
       if (!target) return;
 
-      // Safely evaluate scripts in swapped content without modifying HTMX's DOM references
-      target.querySelectorAll("script").forEach(s => {
-        try {
-          (1, eval)(s.textContent);
-        } catch(e) {
-          console.error("Script execution error:", e);
-        }
-      });
-
       // Synchronize selection highlight with loaded case stage
       const viewer = document.getElementById("case-viewer-container");
       if (viewer) {
@@ -181,5 +173,14 @@
       }
     });
   </script>
+<div id="request-status" role="alert" style="position:fixed;bottom:22px;left:20px;right:20px;z-index:1000;padding:14px;background:#172535;border:1px solid #577b93;border-radius:8px;display:none"></div>
+<script>
+document.body.addEventListener('htmx:responseError',function(e){
+ var message='The request failed. Please check the data or model configuration.';
+ try{message=JSON.parse(e.detail.xhr.responseText).detail||message;}catch(_){}
+ var status=document.getElementById('request-status');status.textContent=typeof message==='string'?message:'Check the request and try again.';status.style.display='block';
+ clearTimeout(window.requestStatusTimer);window.requestStatusTimer=setTimeout(function(){status.style.display='none'},10000);
+});
+</script>
 </body>
 </html>

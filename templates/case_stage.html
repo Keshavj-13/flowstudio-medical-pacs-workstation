@@ -52,7 +52,7 @@
       </div>
       {% if case.benchmark_dice %}
       <div class="hud-pill">
-        <span class="label">Val Benchmark:</span>
+        <span class="label">Recorded benchmark:</span>
         <span class="val" style="color: #a5b4fc; font-weight: 600;">{{ (case.benchmark_dice * 100)|round(1) }}%</span>
       </div>
       {% endif %}
@@ -83,6 +83,8 @@
       <button class="btn-start-scan" id="start-scan-btn"
               type="button"
               hx-post="/cases/{{ case.case_id }}/scan"
+              hx-disabled-elt="this"
+              {% if case.organ == "unspecified" %}disabled{% endif %}
               hx-include="#model-select"
               hx-target="#main-stage"
               hx-swap="innerHTML"

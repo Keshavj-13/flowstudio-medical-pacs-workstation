@@ -272,7 +272,7 @@
             <span class="stat-label">Full-Volume 3D Dice</span>
             {% if reasoning.has_gt and reasoning.genuine_3d_dice is not none %}
             <span class="stat-val" style="color: {% if reasoning.genuine_3d_dice >= 0.7 %}var(--clinical-emerald){% elif reasoning.genuine_3d_dice >= 0.4 %}var(--clinical-cyan){% else %}var(--clinical-amber){% endif %};">
-              {{ (reasoning.genuine_3d_dice * 100)|round(2) }}%
+              {{ ((reasoning.genuine_3d_dice * 100)|round(2)) ~ "%" if reasoning.genuine_3d_dice is not none else "N/A" }}
             </span>
             <span class="stat-sub">IoU: {{ (metrics.iou_3d * 100)|round(1) if metrics.iou_3d is not none else "N/A" }}% · Whole Matrix</span>
             {% else %}

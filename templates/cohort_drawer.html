@@ -40,7 +40,8 @@
        tabindex="0"
        aria-label="Select study {{ c.name }} ({{ c.organ|upper }})"
        aria-pressed="{% if (active_case and c.case_id == active_case.case_id) or (case and c.case_id == case.case_id) %}true{% else %}false{% endif %}"
-       onclick="loadStudyCase('{{ c.case_id }}')"
+       aria-disabled="{{ 'false' if c.available else 'true' }}"
+       onclick="if(this.getAttribute('aria-disabled')==='true')return;loadStudyCase('{{ c.case_id }}')"
        onkeydown="if(event.key==='Enter'||event.key===' '){ event.preventDefault(); this.click(); }">
     <div class="cohort-card-title">
       <span style="font-weight: 600;">{{ c.name }}</span>
@@ -51,13 +52,13 @@
       <div class="cohort-card-meta-left">
         <span>Matrix: {{ c.shape_xyz[0] }}×{{ c.shape_xyz[1] }}×{{ c.shape_xyz[2] }}</span>
         <span>·</span>
-        <span>{{ c.dataset }}</span>
+        <span>{{ c.dataset }}{% if not c.available %} · Not mounted{% endif %}</span>
       </div>
       <div class="cohort-card-meta-right">
         {% if c.benchmark_dice and c.benchmark_dice >= 0.88 %}
-        <span class="benchmark-pill sota">SOTA Bench: {{ (c.benchmark_dice * 100)|round(1) }}%</span>
+        <span class="benchmark-pill sota">Recorded bench: {{ (c.benchmark_dice * 100)|round(1) }}%</span>
         {% elif c.benchmark_dice %}
-        <span class="benchmark-pill standard">Bench: {{ (c.benchmark_dice * 100)|round(1) }}%</span>
+        <span class="benchmark-pill standard">Recorded bench: {{ (c.benchmark_dice * 100)|round(1) }}%</span>
         {% endif %}
       </div>
     </div>
@@ -76,9 +77,9 @@
 
   <div style="width: 100%; height: 1px; background: var(--glass-border); margin: 6px 0;"></div>
 
-  <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Upload NIfTI / DICOM</div>
+  <div style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Upload NIfTI</div>
   <form hx-post="/cases/upload" hx-encoding="multipart/form-data" hx-target="#main-stage" hx-swap="innerHTML" style="display: flex; flex-direction: column; gap: 6px;">
-    <input type="file" name="file" accept=".nii,.nii.gz,.dcm"
+    <input type="file" name="file" accept=".nii,.nii.gz"
            style="font-size: 10px; color: var(--text-muted);" onchange="this.form.requestSubmit()" />
   </form>
 </div>

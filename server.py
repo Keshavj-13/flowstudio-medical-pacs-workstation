@@ -36,7 +36,6 @@ from typing import Dict, Any, Optional, List, Tuple
 from io import BytesIO
 
 import numpy as np
-import torch
 import nibabel as nib
 from PIL import Image, ImageDraw
 
@@ -56,7 +55,7 @@ except Exception:
 
 # Path bindings
 ROOT = Path(__file__).resolve().parent
-JOBS_DIR = ROOT / "jobs"
+JOBS_DIR = Path(os.environ.get("FLOWSTUDIO_JOBS_DIR", str(ROOT / "jobs")))
 JOBS_DIR.mkdir(parents=True, exist_ok=True)
 STATIC_DIR = ROOT / "static"
 TEMPLATES_DIR = ROOT / "templates"
@@ -64,7 +63,25 @@ TEMPLATES_DIR = ROOT / "templates"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from genuine_engine import GenuineInferenceManager
+def validate_model(model_type: str) -> None:
+    if model_type not in {"cice_beatnet", "legacy_beatnet"}:
+        raise HTTPException(status_code=422, detail="Choose CICE-BEATNet or Legacy BEATNet. The VLM studio is a separate service and is not connected here.")
+
+def get_inference_engine(model_type: str):
+    validate_model(model_type)
+    try:
+        from genuine_engine import GenuineInferenceManager
+        engine = GenuineInferenceManager.get_instance()
+        if model_type == "cice_beatnet":
+            engine.load_beatnet()
+        else:
+            engine.load_legacy_beatnet()
+        return engine
+    except (ImportError, OSError, RuntimeError, ValueError, KeyError) as exc:
+        import logging
+        logging.getLogger(__name__).exception("Selected model failed to load")
+        raise HTTPException(status_code=503, detail="The selected model could not load. Check the inference dependencies, research checkout, checkpoint, and GPU. The volume viewer is still available.") from exc
+
 
 app = FastAPI(title="FlowStudio PACS • Multi-Organ Workstation", version="6.0")
 
@@ -496,6 +513,14 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
 ]
 
 def get_cohort_cases() -> List[Dict[str, Any]]:
+    for case in MULTI_ORGAN_COHORTS:
+        case["available"] = Path(case["image_path"]).is_file()
+        if case["available"]:
+            try:
+                shape = list(nib.load(case["image_path"]).shape[:3])
+                case.update(shape_xyz=shape, n_slices=shape[2], initial_slice=min(case.get("initial_slice", shape[2] // 2), shape[2] - 1))
+            except (OSError, ValueError):
+                case["available"] = False
     return MULTI_ORGAN_COHORTS
 
 def get_case_meta(case_id: str) -> Dict[str, Any]:
@@ -511,11 +536,13 @@ def get_case_meta(case_id: str) -> Dict[str, Any]:
         return dict(CUSTOM_CASE_REGISTRY[case_id])
 
     # Yunnan dynamic resolution
-    if case_id.startswith("yunnan_"):
+    if re.fullmatch(r"yunnan_\d+", case_id):
         oid = case_id.replace("yunnan_", "")
         p2_path = Path(f"/workspace/dataset/{oid}/P2.nii")
         p1_path = Path(f"/workspace/dataset/{oid}/P1.nii")
         gt_path = Path(f"/workspace/dataset/{oid}/gt.nii")
+        if not p2_path.is_file():
+            raise HTTPException(status_code=404, detail="Case volume is not mounted on this server.")
         meta = {
             "case_id": case_id,
             "name": f"Clinical Case #{oid} (Yunnan DCE-MRI)",
@@ -537,8 +564,7 @@ def get_case_meta(case_id: str) -> Dict[str, Any]:
         CASE_META_CACHE[case_id] = meta
         return meta
 
-    first = MULTI_ORGAN_COHORTS[0]
-    return dict(first)
+    raise HTTPException(status_code=404, detail="Unknown case ID.")
 
 # ---------------------------------------------------------------------------
 # Volume & Mask Loading with Modality/Phase Switching
@@ -608,6 +634,8 @@ def get_loaded_mask(case_id: str, use_pred: bool = True) -> Optional[np.ndarray]
                 m = m[..., 0]
             MASK_CACHE[pred_key] = m
             return m
+        # Reference masks must never be returned as predictions.
+        return None
 
     gt_key = f"{case_id}_gt"
     if gt_key in MASK_CACHE:
@@ -688,6 +716,10 @@ def apply_lut(arr_norm: np.ndarray, lut: str) -> np.ndarray:
         r = np.clip(1.5 * x - 0.2, 0.0, 1.0)
         g = np.clip(np.sin(x * np.pi), 0.0, 1.0)
         b = np.clip(1.0 - 1.5 * x, 0.0, 1.0)
+    elif lut == "inferno":
+        r = np.clip(1.3 * x, 0.0, 1.0)
+        g = np.clip(1.4 * x**2, 0.0, 1.0)
+        b = np.clip(np.sin(x * np.pi * 0.7), 0.0, 1.0)
     else:
         rgb = np.repeat((arr_norm * 255.0).astype(np.uint8)[:, :, np.newaxis], 3, axis=2)
         return rgb
@@ -702,7 +734,7 @@ def apply_lut(arr_norm: np.ndarray, lut: str) -> np.ndarray:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     cases = get_cohort_cases()
-    default_case = cases[0]
+    default_case = next((c for c in cases if Path(c["image_path"]).is_file()), cases[0])
     return templates.TemplateResponse(request=request, name="base.html", context={
         "request": request,
         "cases": cases,
@@ -714,6 +746,8 @@ def index(request: Request):
 @app.get("/cases/{case_id}", response_class=HTMLResponse)
 def load_case_stage(request: Request, case_id: str):
     case = get_case_meta(case_id)
+    if not Path(case["image_path"]).is_file():
+        raise HTTPException(404, "This study is not mounted on the server.")
     cohort_cases = get_cohort_cases()
     if request.headers.get("hx-request"):
         return templates.TemplateResponse(request=request, name="case_stage.html", context={
@@ -721,7 +755,8 @@ def load_case_stage(request: Request, case_id: str):
             "case": case,
             "cases": cohort_cases,
             "active_case": case,
-            "model_type": "cice_beatnet"
+            "model_type": "cice_beatnet",
+            "cases": get_cohort_cases()
         })
     return templates.TemplateResponse(request=request, name="base.html", context={
         "request": request,
@@ -838,7 +873,12 @@ def get_slice_image(
 
 @app.post("/cases/{case_id}/scan", response_class=HTMLResponse)
 def trigger_scan(request: Request, case_id: str, model_type: str = Form("cice_beatnet")):
+    validate_model(model_type)
     case = get_case_meta(case_id)
+    if case.get("organ") == "unspecified":
+        raise HTTPException(422, "Uploaded volumes are available in viewing mode.")
+    get_loaded_volume(case_id)
+    get_inference_engine(model_type)
     model_labels = {
         "cice_beatnet": "BEATNet CICE (Multi-Organ 3D Foundation UNet)",
         "legacy_beatnet": "BEATNet Original (FlexibleUNet Baseline)",
@@ -855,6 +895,7 @@ def trigger_scan(request: Request, case_id: str, model_type: str = Form("cice_be
 
 @app.get("/cases/{case_id}/scan-status", response_class=HTMLResponse)
 def scan_status_check(request: Request, case_id: str, model_type: str = "cice_beatnet", format: Optional[str] = None):
+    validate_model(model_type)
     case = get_case_meta(case_id)
     vol = get_loaded_volume(case_id, phase="P2")
     gt_mask = get_loaded_mask(case_id, use_pred=False)
@@ -888,7 +929,7 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
             pass
 
     # EXECUTE GENUINE GPU INFERENCE
-    engine = GenuineInferenceManager.get_instance()
+    engine = get_inference_engine(model_type)
     t0 = time.perf_counter()
 
     if model_type == "qwen_nuclear_vlm":
@@ -912,7 +953,8 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
     case_job_dir.mkdir(parents=True, exist_ok=True)
     pred_mask = inf_result["pred_mask"]
 
-    pred_nii = nib.Nifti1Image(pred_mask.astype(np.uint8), affine=np.eye(4))
+    source_nii = nib.load(case["image_path"])
+    pred_nii = nib.Nifti1Image(pred_mask.astype(np.uint8), affine=source_nii.affine)
     nib.save(pred_nii, str(case_job_dir / "pred_mask.nii.gz"))
     MASK_CACHE[f"{case_id}_pred"] = pred_mask.astype(np.float32)
 
@@ -921,7 +963,7 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
     val_expected = inf_result.get("validation_expected_dice", 0.8000)
     tumor_vol = inf_result["tumor_volume_ml"]
     pred_zs = inf_result["predicted_depth_slices"]
-    gt_zs = inf_result.get("gt_depth_slices") or [pred_zs[0] + 5, pred_zs[1] - 5]
+    gt_zs = inf_result.get("gt_depth_slices")
 
     # Save metrics JSON
     metrics_data = {
@@ -950,6 +992,7 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
             "sagittal": int(case["shape_xyz"][0] // 2)
         },
         "shape_xyz": case["shape_xyz"],
+        "has_gt": inf_result["has_gt"],
         "think_markdown": inf_result.get("think_markdown", "")
     }
 
@@ -1000,8 +1043,6 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
 @app.get("/api/jobs/{case_id}/mesh3d")
 def get_mesh_3d(case_id: str, decimate: int = 1):
     pred_mask = get_loaded_mask(case_id, use_pred=True)
-    if pred_mask is None or np.sum(pred_mask > 0) == 0:
-        pred_mask = get_loaded_mask(case_id, use_pred=False)
 
     if pred_mask is None or np.sum(pred_mask > 0) == 0:
         return {"voxel_count": 0, "voxels": [], "bounds": None}
@@ -1088,6 +1129,98 @@ def sample_roi_density(
         "center": [cx, cy],
         "radius": radius
     }
+
+@app.get("/healthz")
+def healthz():
+    # Liveness does not imply model readiness or successful GPU inference.
+    return {"status": "ok", "service": "flowstudio-pacs", "inference_verified": False}
+
+@app.get("/cases")
+def list_cases():
+    return [
+        {key: case[key] for key in ("case_id", "name", "organ", "modality", "dataset")}
+        | {"available": Path(case["image_path"]).is_file()}
+        for case in get_cohort_cases() + list(CUSTOM_CASE_REGISTRY.values())
+    ]
+
+@app.post("/cases/{case_id}/select", response_class=HTMLResponse)
+def select_case(request: Request, case_id: str):
+    case = get_case_meta(case_id)
+    image_path = Path(case["image_path"])
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="Case volume is not mounted on this server.")
+    image = nib.load(str(image_path))
+    shape = list(image.shape[:3])
+    if len(shape) != 3 or any(dim <= 0 for dim in shape):
+        raise HTTPException(status_code=422, detail="A three-dimensional volume is required.")
+    case.update(shape_xyz=shape, n_slices=shape[2],
+                initial_slice=min(case.get("initial_slice", shape[2] // 2), shape[2] - 1))
+    CASE_META_CACHE[case_id] = dict(case)
+    return templates.TemplateResponse(request=request, name="case_stage.html",
+                                      context={"request": request, "case": case, "cases": get_cohort_cases()})
+
+@app.post("/cases/upload", response_class=HTMLResponse)
+async def upload_case(request: Request, file: UploadFile = File(...)):
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".nii", ".nii.gz")):
+        await file.close()
+        raise HTTPException(status_code=422, detail="Upload a NIfTI volume (.nii or .nii.gz).")
+    case_id = "upload_" + uuid.uuid4().hex
+    case_dir = JOBS_DIR / case_id
+    case_dir.mkdir()
+    image_path = case_dir / ("input.nii.gz" if filename.endswith(".nii.gz") else "input.nii")
+    size = 0
+    try:
+        with image_path.open("wb") as output:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > 512 * 1024 * 1024:
+                    raise HTTPException(status_code=413, detail="The upload limit is 512 MiB.")
+                output.write(chunk)
+        image = nib.load(str(image_path))
+        if len(image.shape) not in (3, 4) or any(dim <= 0 for dim in image.shape):
+            raise ValueError("A three-dimensional NIfTI volume is required.")
+        shape = list(image.shape[:3])
+        CUSTOM_CASE_REGISTRY[case_id] = {
+            "case_id": case_id, "name": file.filename, "organ": "unspecified",
+            "modality": "unspecified", "pathology": "Uploaded volume",
+            "image_path": str(image_path), "mask_path": None, "has_gt": False,
+            "shape_xyz": shape, "n_slices": shape[2], "initial_slice": shape[2] // 2,
+            "dataset": "Uploaded NIfTI", "available_phases": ["NATIVE"],
+            "tumor_volume_ml": None
+        }
+        return select_case(request, case_id)
+    except Exception as exc:
+        CUSTOM_CASE_REGISTRY.pop(case_id, None)
+        CASE_META_CACHE.pop(case_id, None)
+        shutil.rmtree(case_dir, ignore_errors=True)
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=422, detail="The file is not a readable NIfTI volume.") from exc
+    finally:
+        await file.close()
+
+
+
+@app.post("/cases/server-path/load", response_class=HTMLResponse)
+def load_server_path(request: Request, server_path: str = Form(...)):
+    path = Path(server_path).expanduser().resolve()
+    if not path.is_file() or not str(path).lower().endswith((".nii", ".nii.gz")):
+        raise HTTPException(422, "Enter the full path to an existing .nii or .nii.gz volume.")
+    try:
+        shape = list(nib.load(str(path)).shape[:3])
+        if len(shape) != 3:
+            raise ValueError("Expected a volume")
+    except Exception as exc:
+        raise HTTPException(422, "The selected file is not a readable NIfTI volume.") from exc
+    case_id = "mount_" + uuid.uuid4().hex
+    CUSTOM_CASE_REGISTRY[case_id] = {
+        "case_id": case_id, "name": path.name, "organ": "unspecified", "modality": "unspecified",
+        "pathology": "Mounted volume — viewing mode", "image_path": str(path), "mask_path": None,
+        "has_gt": False, "shape_xyz": shape, "n_slices": shape[2], "initial_slice": shape[2] // 2,
+        "dataset": "Server volume", "available_phases": ["NATIVE"], "tumor_volume_ml": None}
+    return select_case(request, case_id)
+
 
 if __name__ == "__main__":
     import uvicorn
