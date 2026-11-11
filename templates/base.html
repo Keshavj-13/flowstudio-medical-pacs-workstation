@@ -13,7 +13,7 @@
   <!-- JavaScript Dependencies (Local HTMX & Three.js) -->
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/three.min.js"></script>
-  <link rel="stylesheet" href="/static/css/readability.css">
+  <link rel="stylesheet" href="/static/css/readability.css?v=20261111-viewer-layout">
 </head>
 <body>
   <div class="pacs-app-container">
@@ -71,7 +71,7 @@
       </button>
 
       <!-- Main Stage (Loads Active Case) -->
-      <main class="main-stage" id="main-stage">
+      <main class="main-stage" id="main-stage" hx-sync="this:replace">
         {% include "case_stage.html" with context %}
       </main>
     </div>
@@ -139,15 +139,48 @@
       if (dSelect && dSelect.value !== caseId) dSelect.value = caseId;
     };
 
+    // A replaced viewer must not leave playback or WebGL callbacks running.
+    window.cleanupCaseViewer = function() {
+      if (window.cineInterval != null) clearInterval(window.cineInterval);
+      window.cineInterval = null;
+      window.isCinePlaying = false;
+      const cineButton = document.getElementById("btn-cine-play");
+      if (cineButton) {
+        cineButton.classList.remove("active");
+        cineButton.innerText = "Cine Play";
+      }
+      if (typeof window.cleanup3DTumorPlot === "function") window.cleanup3DTumorPlot();
+    };
+    document.addEventListener("htmx:beforeSwap", function(evt) {
+      if (evt.detail.target?.id === "main-stage" && evt.detail.shouldSwap !== false) {
+        window.cleanupCaseViewer();
+      }
+    });
+
+    // Keep the study visible on compact screens; the header opens the drawer.
+    window.closeCompactCohorts = function() {
+      if (!window.matchMedia("(max-width: 1100px)").matches) return;
+      document.getElementById("cohort-sidebar")?.classList.add("collapsed");
+      const trigger = document.getElementById("cohort-open-trigger");
+      if (trigger) trigger.style.display = "flex";
+    };
+    window.closeCompactCohorts();
+
     // Client-side Study Switcher
     window.loadStudyCase = function(caseId) {
       if (!caseId) return;
+      window.cleanupCaseViewer();
+      window.closeCompactCohorts();
       window.updateActiveCaseHighlight(caseId);
       if (window.htmx) {
-        htmx.ajax("GET", "/cases/" + caseId, {
+        const request = htmx.ajax("GET", "/cases/" + caseId, {
+          source: document.getElementById("main-stage"),
           target: "#main-stage",
           swap: "innerHTML"
         });
+        // hx-sync cancels superseded selections; HTMX reports HTTP failures
+        // through responseError, so consume the cancellation rejection here.
+        if (request && typeof request.catch === "function") request.catch(function() {});
       }
     };
 
@@ -163,6 +196,11 @@
         if (currentId && typeof window.updateActiveCaseHighlight === "function") {
           window.updateActiveCaseHighlight(currentId);
         }
+      }
+
+      const drawer = document.getElementById("diagnostic-drawer");
+      if (target.id === "main-stage" && drawer && window.matchMedia("(max-width: 1200px)").matches) {
+        drawer.classList.add("collapsed");
       }
 
       // If a diagnostic dossier with 3D container was swapped into DOM, ensure 3D voxel plot mounts cleanly

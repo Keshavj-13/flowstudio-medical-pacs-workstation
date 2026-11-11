@@ -1,1 +1,112 @@
-html,body,.pacs-app-container{height:100dvh}.pacs-header{opacity:1}.brand-title{letter-spacing:-.01em}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #8ed0e8;outline-offset:3px}.hud-pill,.dock-btn,.cohort-card{font-variant-numeric:tabular-nums}.dock-btn{min-height:30px}.canvas-hud-top{flex-wrap:wrap;gap:8px}.radiological-dock{max-width:calc(100% - 24px);overflow-x:auto}.radiological-dock>*{flex-shrink:0}.htmx-request{cursor:progress}.cohort-card-desc{line-height:1.6}@media(max-width:860px){.header-center-info{display:none}.floating-cine-bar{max-width:calc(100vw - 20px);overflow-x:auto;justify-content:flex-start}.pacs-sidebar{max-width:calc(100vw - 20px)}.canvas-hud-top{max-height:28dvh;overflow-y:auto}.radiological-dock{max-width:calc(100vw - 16px)}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}.cohort-card[aria-disabled=true]{opacity:.45;cursor:default}.canvas-hud-top{left:12px;right:12px;max-width:calc(100% - 24px);height:auto}.hud-pill-group{min-width:0;max-width:100%;flex-wrap:wrap}.floating-cine-bar{max-width:calc(100% - 24px);opacity:1;overflow-x:auto;justify-content:flex-start}.controls-group{flex-wrap:wrap}.canvas-hud-top select{max-width:240px}@media(max-width:860px){.canvas-hud-top{position:relative;top:8px;left:8px;right:auto;max-width:calc(100% - 16px)}.floating-cine-bar{position:relative;top:14px;left:8px;transform:none}.viewer-canvas-area{min-height:55dvh}}
+html, body, .pacs-app-container { height: 100dvh; }
+.pacs-header { opacity: 1; }
+.brand-title { letter-spacing: -.01em; }
+button:focus-visible, select:focus-visible, input:focus-visible {
+  outline: 2px solid #8ed0e8;
+  outline-offset: 3px;
+}
+.hud-pill, .dock-btn, .cohort-card { font-variant-numeric: tabular-nums; }
+.dock-btn { min-height: 30px; }
+.htmx-request { cursor: progress; }
+.cohort-card-desc { line-height: 1.6; }
+.cohort-card[aria-disabled=true] { opacity: .45; cursor: default; }
+.main-stage, .case-viewer-container { min-height: 0; }
+
+/* Controls occupy their own rows, independent of study image dimensions. */
+.viewer-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px;
+  overflow: hidden;
+}
+.viewer-panel > .canvas-hud-top,
+.viewer-panel > .floating-cine-bar,
+.viewer-panel > .radiological-dock {
+  position: static;
+  inset: auto;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+}
+.viewer-panel > .canvas-hud-top {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  height: auto;
+  pointer-events: auto;
+}
+.hud-pill-group, .hud-pill-group.controls-group {
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+  border-radius: 10px;
+  padding: 5px 8px;
+  overflow: visible;
+}
+.canvas-hud-top select { max-width: min(240px, 65vw); }
+.floating-cine-bar, .radiological-dock {
+  opacity: 1;
+  justify-content: flex-start;
+  overflow-x: auto;
+  min-width: 0;
+}
+.floating-cine-bar > *, .radiological-dock > * { flex-shrink: 0; }
+.viewer-panel > .viewer-canvas-area {
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+.dicom-image-wrapper { max-width: 100%; max-height: 100%; }
+.dicom-slice-img { max-width: 100cqw; max-height: 100cqh; }
+.floating-island { width: min(380px, 38%); min-width: 0; }
+
+@media (max-width: 1200px) {
+  .floating-island {
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    width: min(420px, calc(100% - 16px));
+    height: calc(100% - 16px);
+    margin: 0;
+  }
+  .floating-island.collapsed { width: 0; margin: 0; }
+}
+@media (max-width: 1100px) {
+  .header-center-info { display: none; }
+  .pacs-sidebar {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: min(380px, calc(100% - 16px));
+    max-width: calc(100% - 16px);
+    margin: 0;
+  }
+  .pacs-sidebar.collapsed { width: 0; margin: 0; }
+  .cohort-open-trigger { display: none !important; }
+}
+@media (max-width: 600px) {
+  .pacs-header { gap: 8px; padding-inline: 8px; }
+  .brand-section { min-width: 0; }
+  .brand-title { font-size: 12px; }
+  .brand-title .brand-badge { display: none; }
+  .brand-sub { font-size: 8px; }
+  .header-actions { flex-shrink: 0; }
+  .viewer-panel { padding: 6px; gap: 4px; }
+  .viewer-panel > .canvas-hud-top { max-height: 30dvh; overflow-y: auto; }
+  .hud-pill-group { gap: 5px; }
+  .hud-pill .val { max-width: 112px; }
+  .floating-cine-bar, .radiological-dock { border-radius: 10px; padding-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

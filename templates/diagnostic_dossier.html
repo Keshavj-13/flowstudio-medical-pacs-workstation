@@ -1,6 +1,6 @@
 <div class="case-viewer-container" id="case-viewer-container" data-current-case-id="{{ case.case_id }}">
   <!-- Left/Center Edge-to-Edge Canvas Area -->
-  <div class="viewer-canvas-area" id="viewer-canvas-area">
+  <div class="viewer-panel">
     <!-- Top Metadata HUD -->
     <div class="canvas-hud-top">
       <div class="hud-pill-group">
@@ -167,6 +167,7 @@
     </div>
 
     <!-- Slice Image Area -->
+    <div class="viewer-canvas-area" id="viewer-canvas-area">
     <div class="dicom-image-wrapper" id="dicom-image-wrapper" onclick="handleCanvasClick(event)">
       <img id="dicom-slice-img"
            class="dicom-slice-img"
@@ -180,6 +181,8 @@
       <div id="telemetry-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(11, 17, 32, 0.85); border: 1px solid var(--glass-border); border-radius: var(--radius-xs); padding: 3px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--clinical-cyan); pointer-events: none;">
         Slice: {{ metrics.best_slices.axial }} | Model: {{ reasoning.model_name }} | Dice: {% if reasoning.has_gt and reasoning.genuine_3d_dice is not none %}{{ (reasoning.genuine_3d_dice * 100)|round(1) }}%{% else %}Unlabeled{% endif %}
       </div>
+    </div>
+
     </div>
 
     <!-- Bottom Radiological Dock -->
