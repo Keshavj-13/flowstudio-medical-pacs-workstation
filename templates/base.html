@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlowStudio PACS • Precision Oncology Diagnostic Workstation</title>
+  <title>FlowStudio · Multi-organ workstation</title>
+  <meta name="theme-color" content="#0b111a">
   <link rel="stylesheet" href="/static/css/clinical_pacs.css?v=3">
+  <link rel="stylesheet" href="/static/css/workstation.css?v=1">
   <script src="/static/js/htmx.min.js"></script>
   <script src="/static/js/three.min.js"></script>
 </head>
 <body>
+<a class="skip-link" href="#main-stage">Skip to viewer</a>
 <div class="pacs-app-container">
   <!-- Clinical Header -->
   <header class="pacs-header">
@@ -19,36 +22,23 @@
         </svg>
       </div>
       <span class="brand-title">FlowStudio PACS</span>
-      <span class="brand-badge">DICOM 3.0 COMPLIANT</span>
+      <span class="brand-badge">Research workstation</span>
       <span class="brand-badge" style="background: rgba(16, 185, 129, 0.1); color: var(--clinical-emerald); border-color: rgba(16, 185, 129, 0.3);">
-        ACR BI-RADS ATLAS
+        Multi-organ CT / MRI
       </span>
     </div>
 
-    <div class="header-center-info">
-      <div class="header-stat">
-        <span class="dot"></span>
-        <span>A100-80GB GPU Active</span>
-      </div>
-      <div class="header-stat">
-        <span style="color: var(--text-muted);">Inference Latency:</span>
-        <span style="font-family: var(--font-mono); color: var(--clinical-cyan);"><span id="pacs-latency">4</span>ms</span>
-      </div>
-      <div class="header-stat">
-        <span style="color: var(--text-muted);">Model Backbone:</span>
-        <span style="font-weight: 600; color: var(--text-primary);">Qwen3.5-0.8B Nuclear Multimodal VLM</span>
-      </div>
+    <div class="header-center-info" aria-label="Workstation status">
+      <div class="header-stat"><span class="dot" id="service-dot"></span><span id="service-status" role="status">Checking service…</span></div>
+      <span class="header-stat">CICE-BEATNet / Legacy BEATNet</span>
     </div>
 
     <div class="header-actions">
       <button class="dock-btn" onclick="toggleSidebar()" title="Toggle Cohort & Ingestion Drawer (Ctrl+B)">
         <span id="sidebar-toggle-label">Cohorts</span>
       </button>
-      <button class="dock-btn" id="btn-agent-island-toggle" onclick="toggleAgentIsland()" title="Toggle AI Copilot Square Island (Ctrl+J)">
-        <span id="agent-toggle-label">AI Copilot</span>
-      </button>
-      <button class="dock-btn" id="btn-diag-island-toggle" onclick="toggleDiagDrawer()" title="Toggle Diagnostic Dossier & XAI (Ctrl+D)">
-        <span id="diag-toggle-label">Diagnostic Island</span>
+      <button class="dock-btn" id="btn-diag-island-toggle" onclick="toggleDiagDrawer()" title="Toggle Segmentation results (Ctrl+D)">
+        <span id="diag-toggle-label">Results</span>
       </button>
     </div>
   </header>
@@ -69,7 +59,7 @@
     </aside>
 
     <!-- Center Main Viewport -->
-    <main class="main-stage" id="main-stage">
+    <main class="main-stage" id="main-stage" tabindex="-1" aria-label="Volume viewer">
       <div class="pacs-empty-state" id="empty-state-banner">
         <div class="empty-icon-shield">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -78,15 +68,16 @@
             <path d="M21 15l-5-5L5 21" />
           </svg>
         </div>
-        <h2 class="empty-title">Radiological Workstation Standby</h2>
+        <span class="workspace-eyebrow">MULTI-ORGAN IMAGING</span>
+        <h1 class="empty-title">A clearer view of every volume.</h1>
         <p class="empty-desc">
-          Select any clinical patient case from the cohort list, enter any server file path, or upload a NIfTI volume.
-          Scans mount instantaneously with synchronized multi-planar DICOM viewing.
+          Browse the case library or upload a NIfTI volume. Review axial, coronal, and sagittal slices,
+          adjust contrast, and run a configured segmentation model.
         </p>
         <div style="display: flex; gap: 10px; margin-top: 6px;">
           <button class="dock-btn" style="border: 1px solid var(--glass-border); padding: 7px 16px; border-radius: var(--radius-pill); font-size: 11px;"
-                  hx-post="/cases/yunnan_19/select" hx-target="#main-stage" hx-swap="innerHTML">
-            Inspect Clinical Benchmark (Case #19)
+                  onclick="openCohorts()">
+            Browse case library
           </button>
         </div>
       </div>
@@ -98,12 +89,11 @@
 <nav class="mobile-pacs-dock" id="mobile-pacs-dock">
   <button type="button" class="mobile-dock-btn active" id="m-btn-viewer" onclick="switchMobileView('viewer', this)">Viewer</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-3d" onclick="switchMobileView('3d', this)">3D Voxels</button>
-  <button type="button" class="mobile-dock-btn" id="m-btn-agent" onclick="switchMobileView('agent', this)">AI Copilot</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-dossier" onclick="switchMobileView('dossier', this)">Dossier</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-cohorts" onclick="switchMobileView('cohorts', this)">Cohorts</button>
 </nav>
 
-<div id="toast" class="toast-msg">Copied to Clipboard</div>
+<div id="toast" class="toast-msg" role="status" aria-live="polite"></div>
 
 <script>
   function switchMobileView(mode, btn) {
@@ -120,11 +110,11 @@
       if (cohortSidebar) cohortSidebar.classList.add('collapsed');
     } else if (mode === '3d') {
       if (diagDrawer) {
-        diagDrawer.classList.remove('collapsed');
+        diagDrawer.classList.remove('collapsed', 'closed');
         if (typeof switchDrawerTab === 'function') {
           switchDrawerTab('plot3d-tab', document.getElementById('tab-mesh3d-btn'));
         }
-        if (typeof init3DTumorPlot === 'function') init3DTumorPlot();
+        if (typeof loadResultMesh === 'function') loadResultMesh();
       }
       if (agentIsland) agentIsland.classList.add('closed');
       if (cohortSidebar) cohortSidebar.classList.add('collapsed');
@@ -134,7 +124,7 @@
       if (cohortSidebar) cohortSidebar.classList.add('collapsed');
     } else if (mode === 'dossier') {
       if (diagDrawer) {
-        diagDrawer.classList.remove('collapsed');
+        diagDrawer.classList.remove('collapsed', 'closed');
         if (typeof switchDrawerTab === 'function') {
           switchDrawerTab('clinical-tab', document.getElementById('tab-clinical-btn'));
         }
@@ -159,14 +149,20 @@
     if (trigger) trigger.style.display = isCollapsed ? "flex" : "none";
   }
 
+  function openCohorts() {
+    const sidebar = document.getElementById("cohort-sidebar");
+    if (sidebar && sidebar.classList.contains("collapsed")) toggleSidebar();
+    document.getElementById("cohort-search")?.focus();
+  }
+
   function toggleDiagDrawer() {
     const dd = document.getElementById("diagnostic-drawer");
     if (dd) {
-      dd.classList.toggle("closed");
-      dd.classList.toggle("collapsed");
-      const isClosed = dd.classList.contains("closed") || dd.classList.contains("collapsed");
+      const isClosed = !(dd.classList.contains("closed") || dd.classList.contains("collapsed"));
+      dd.classList.toggle("closed", isClosed);
+      dd.classList.toggle("collapsed", isClosed);
       const label = document.getElementById("diag-toggle-label");
-      if (label) label.innerText = "Diagnostic Island";
+      if (label) label.innerText = "Results";
       const hudBtn = document.getElementById("btn-toggle-diag-drawer");
       if (hudBtn) hudBtn.classList.toggle("active", !isClosed);
     }
@@ -187,18 +183,21 @@
 
   function showToast(msg) {
     const t = document.getElementById("toast");
+    clearTimeout(window.flowstudioToastTimer);
     t.innerText = msg || "Copied to Clipboard";
     t.classList.add("show");
-    setTimeout(() => t.classList.remove("show"), 2200);
+    window.flowstudioToastTimer = setTimeout(() => t.classList.remove("show"), 6500);
   }
 
   function copyText(txt) {
-    navigator.clipboard.writeText(txt).then(() => showToast("Clinical Impression Copied to Clipboard!"));
+    if (!navigator.clipboard) { showToast("Clipboard access requires HTTPS."); return; }
+    navigator.clipboard.writeText(txt).then(() => showToast("Copied to clipboard."))
+      .catch(() => showToast("Clipboard access was denied."));
   }
 
   // Radiologist keyboard shortcuts
   window.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.target.closest("input, textarea, select, [contenteditable=true]")) return;
     if (e.key === "b" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleSidebar(); }
     if (e.key === "d" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleDiagDrawer(); }
     if (e.key === "j" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); toggleAgentIsland(); }
@@ -216,6 +215,31 @@
       }
     }
   });
+  document.body.addEventListener("htmx:responseError", (event) => {
+    let message = "The request failed. Please try again.";
+    try { message = JSON.parse(event.detail.xhr.responseText).detail || message; } catch (_) {}
+    showToast(typeof message === "string" ? message : "Check the request and try again.");
+    openCohorts();
+  });
+  document.body.addEventListener("htmx:sendError", () => showToast("Connection lost. Check the server and try again."));
+  document.body.addEventListener("error", (event) => {
+    if (event.target.id === "dicom-slice-img") showToast("The slice could not load. Check that the case data is mounted.");
+  }, true);
+  async function checkService() {
+    const label = document.getElementById("service-status");
+    const dot = document.getElementById("service-dot");
+    try {
+      const response = await fetch("/healthz", {cache: "no-store", signal: AbortSignal.timeout(5000)});
+      if (!response.ok) throw new Error("unavailable");
+      label.textContent = "Viewer service online";
+      dot.dataset.state = "online";
+    } catch (_) {
+      label.textContent = "Service unavailable";
+      dot.dataset.state = "offline";
+    }
+  }
+  checkService();
+  setInterval(checkService, 30000);
 </script>
 </body>
 </html>

@@ -1,0 +1,87 @@
+{% include "case_stage.html" %}
+<aside id="diagnostic-drawer" class="results-panel" aria-label="Segmentation results">
+  <div class="sidebar-header">
+    <div><span class="workspace-eyebrow">SEGMENTATION RESULT</span><h2 class="sidebar-title">{{ case.organ|replace("_", " ")|title }}</h2></div>
+    <button type="button" class="island-ctrl-btn" onclick="toggleDiagDrawer()" aria-label="Close results">&times;</button>
+  </div>
+  <div class="result-content">
+    <p class="result-model">{{ metrics.model_name }}</p>
+    <div class="result-grid">
+      <div class="result-stat"><span>Segmented volume</span><strong>{{ metrics.pred_volume_ml }} <small>mL</small></strong></div>
+      <div class="result-stat"><span>3D Dice</span><strong>{{ (metrics.genuine_3d_dice * 100)|round(2) ~ "%" if metrics.genuine_3d_dice is not none else "N/A" }}</strong></div>
+      <div class="result-stat"><span>Predicted voxels</span><strong>{{ metrics.pred_voxels }}</strong></div>
+      <div class="result-stat"><span>Inference time</span><strong>{{ (metrics.total_latency_ms / 1000)|round(2) }} <small>s</small></strong></div>
+    </div>
+    <p class="library-summary">Dice is calculated only when a reference mask exists. The displayed overlay is the saved prediction.</p>
+    <dl class="result-details">
+      <dt>Axial extent</dt><dd>{{ metrics.predicted_depth_slices[0] }}–{{ metrics.predicted_depth_slices[1] }}</dd>
+      <dt>Reference voxels</dt><dd>{{ metrics.gt_voxels if reasoning.has_gt else "Not available" }}</dd>
+      <dt>3D IoU</dt><dd>{{ metrics.iou_3d if metrics.iou_3d is not none else "Not available" }}</dd>
+    </dl>
+    <button type="button" class="dock-btn" onclick="loadResultMesh()" id="result-mesh-btn">Show 3D segmentation</button>
+    <div id="result-mesh" class="result-mesh" role="img" aria-label="Three dimensional segmentation preview" hidden></div>
+    <p id="mesh-status" class="library-summary" role="status"></p>
+  </div>
+</aside>
+<script>
+  toggleOverlay(document.getElementById("btn-overlay-toggle"));
+  window.flowstudioMeshCleanup?.();
+  window.flowstudioMeshCleanup = null;
+  window.loadResultMesh = async function() {
+    const container = document.getElementById("result-mesh");
+    const status = document.getElementById("mesh-status");
+    if (!container || container.dataset.loaded) return;
+    container.dataset.loaded = "loading";
+    status.textContent = "Loading segmentation geometry…";
+    try {
+      const response = await fetch("/api/jobs/{{ case.case_id }}/mesh3d");
+      if (!response.ok) throw new Error("Geometry request failed.");
+      const data = await response.json();
+      if (!container.isConnected) return;
+      if (!data.voxels.length) { status.textContent = "No predicted foreground voxels."; delete container.dataset.loaded; return; }
+      container.hidden = false;
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color("#0b111a");
+      const camera = new THREE.PerspectiveCamera(45, 1, .1, 100);
+      camera.position.set(0, 0, 4);
+      const renderer = new THREE.WebGLRenderer({antialias: true});
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      const width = container.clientWidth || 280;
+      renderer.setSize(width, 240);
+      camera.aspect = width / 240;
+      camera.updateProjectionMatrix();
+      container.appendChild(renderer.domElement);
+      const geometry = new THREE.BoxGeometry(.025, .025, .025);
+      const material = new THREE.MeshNormalMaterial();
+      const mesh = new THREE.InstancedMesh(geometry, material, data.voxels.length);
+      const dummy = new THREE.Object3D();
+      data.voxels.forEach((voxel, index) => {
+        dummy.position.set(voxel.x, voxel.y, voxel.z);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(index, dummy.matrix);
+      });
+      scene.add(mesh);
+      container.dataset.loaded = "true";
+      status.textContent = data.voxel_count + " predicted voxels. Preview uses " + data.voxels.length + " samples.";
+      let frame;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      function render() {
+        if (!container.isConnected) { cleanup(); return; }
+        if (!reduced) mesh.rotation.y += .004;
+        renderer.render(scene, camera);
+        if (!reduced) frame = requestAnimationFrame(render);
+      }
+      function cleanup() {
+        cancelAnimationFrame(frame);
+        geometry.dispose();
+        material.dispose();
+        renderer.dispose();
+      }
+      window.flowstudioMeshCleanup = cleanup;
+      render();
+    } catch (_) {
+      delete container.dataset.loaded;
+      status.textContent = "3D preview unavailable. The slice viewer is still available.";
+    }
+  };
+</script>
