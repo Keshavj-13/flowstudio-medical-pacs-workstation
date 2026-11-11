@@ -1,7 +1,7 @@
 name: Workstation checks
 on:
   push:
-    branches: [main, codex/workstation-demo-readiness]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 permissions:

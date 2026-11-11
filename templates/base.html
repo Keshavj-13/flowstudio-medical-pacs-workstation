@@ -37,11 +37,8 @@
       <button class="dock-btn" onclick="toggleSidebar()" title="Toggle Cohort & Ingestion Drawer (Ctrl+B)">
         <span id="sidebar-toggle-label">Cohorts</span>
       </button>
-      <button class="dock-btn" id="btn-agent-island-toggle" onclick="toggleAgentIsland()" title="Toggle AI Copilot Square Island (Ctrl+J)">
-        <span id="agent-toggle-label">AI Copilot</span>
-      </button>
-      <button class="dock-btn" id="btn-diag-island-toggle" onclick="toggleDiagDrawer()" title="Toggle Diagnostic Dossier & XAI (Ctrl+D)">
-        <span id="diag-toggle-label">Diagnostic Island</span>
+      <button class="dock-btn" id="btn-diag-island-toggle" onclick="toggleDiagDrawer()" title="Toggle Segmentation results (Ctrl+D)">
+        <span id="diag-toggle-label">Results</span>
       </button>
     </div>
   </header>
@@ -92,7 +89,6 @@
 <nav class="mobile-pacs-dock" id="mobile-pacs-dock">
   <button type="button" class="mobile-dock-btn active" id="m-btn-viewer" onclick="switchMobileView('viewer', this)">Viewer</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-3d" onclick="switchMobileView('3d', this)">3D Voxels</button>
-  <button type="button" class="mobile-dock-btn" id="m-btn-agent" onclick="switchMobileView('agent', this)">AI Copilot</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-dossier" onclick="switchMobileView('dossier', this)">Dossier</button>
   <button type="button" class="mobile-dock-btn" id="m-btn-cohorts" onclick="switchMobileView('cohorts', this)">Cohorts</button>
 </nav>
@@ -118,7 +114,7 @@
         if (typeof switchDrawerTab === 'function') {
           switchDrawerTab('plot3d-tab', document.getElementById('tab-mesh3d-btn'));
         }
-        if (typeof init3DTumorPlot === 'function') init3DTumorPlot();
+        if (typeof loadResultMesh === 'function') loadResultMesh();
       }
       if (agentIsland) agentIsland.classList.add('closed');
       if (cohortSidebar) cohortSidebar.classList.add('collapsed');
@@ -166,7 +162,7 @@
       dd.classList.toggle("closed", isClosed);
       dd.classList.toggle("collapsed", isClosed);
       const label = document.getElementById("diag-toggle-label");
-      if (label) label.innerText = "Diagnostic Island";
+      if (label) label.innerText = "Results";
       const hudBtn = document.getElementById("btn-toggle-diag-drawer");
       if (hudBtn) hudBtn.classList.toggle("active", !isClosed);
     }

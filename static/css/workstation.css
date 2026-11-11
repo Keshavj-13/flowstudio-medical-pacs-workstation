@@ -72,3 +72,6 @@ button:disabled { cursor: default; opacity: .55; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+.result-mesh { width: 100%; margin-top: 12px; }
+.result-mesh canvas { display: block; max-width: 100%; }

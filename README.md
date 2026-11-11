@@ -1,104 +1,71 @@
 # FlowStudio PACS
 
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
-[![HTMX](https://img.shields.io/badge/Frontend-HTMX-336699?style=flat&logo=htmx)](https://htmx.org)
-[![Three.js](https://img.shields.io/badge/3D_Rendering-Three.js-black?style=flat&logo=threedotjs)](https://threejs.org)
-[![DICOM-SR](https://img.shields.io/badge/Standard-DICOM--SR_TID_1500-blue?style=flat)](#)
+A FastAPI/HTMX workstation for viewing NIfTI volumes across axial, coronal, and sagittal planes and running locally configured segmentation models.
 
-FlowStudio PACS is a web workstation for 3D volumetric multi-planar reconstruction (MPR), streaming vision-language reasoning, and DICOM-SR TID 1500 report generation.
+## Start the volume viewer
 
-## 1. Interface
-
-### Volumetric navigation and 3D rendering
-
-| Tri-planar scrubbing and colormaps | Autonomous scan and segmentation | 3D WebGL solid voxel orbit |
-| :---: | :---: | :---: |
-| <img src="assets/01_flowstudio_triplanar_scrub.gif" width="100%" alt="Tri-planar scrubbing" /> | <img src="assets/02_flowstudio_autonomous_think_stream.gif" width="100%" alt="Autonomous scan" /> | <img src="assets/03_flowstudio_3d_webgl_orbit.gif" width="100%" alt="3D WebGL orbit" /> |
-| Volumetric slice scrubbing with window/level adjustment and colormaps. | Neural scanline sweep, deep feature extraction, and contour toggling. | Three.js WebGL orbit with synchronized 2D slice cutting plane. |
-
-### Diagnostic intelligence and telemetry
-
-| Vision-language chain-of-thought stream | Continuous cine loop and caliper tool |
-| :---: | :---: |
-| <img src="assets/04_flowstudio_vlm_chain_of_thought.gif" width="100%" alt="VLM reasoning stream" /> | <img src="assets/05_flowstudio_cine_loop_volumetric.gif" width="100%" alt="Volumetric cine loop and caliper" /> |
-| Multimodal reasoning with kinetic analysis and longitudinal interval checks. | 10 FPS continuous cross-sectional sweep and sub-millimeter lesion caliper tool. |
-
-<table align="center" width="100%">
-  <tr>
-    <td width="50%" align="center">
-      <b>Cohort catalog</b><br/>
-      <img src="assets/01_workstation_catalog.png" width="100%" />
-    </td>
-    <td width="50%" align="center">
-      <b>BraTS multi-planar dossier and contours</b><br/>
-      <img src="assets/02_brats_cice_beatnet_dossier.png" width="100%" />
-    </td>
-  </tr>
-</table>
-
-## 2. Architecture and streaming flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Clinician as Radiologist
-    participant UI as Frontend (HTMX / Three.js)
-    participant Server as FastAPI Core
-    participant GPU as GPU Inference Engine
-
-    Clinician->>UI: Selects patient case (e.g. Case 19)
-    UI->>Server: GET /cases/yunnan_19
-    Server-->>UI: Serves case dossier and slice stack
-    Clinician->>UI: Selects model and clicks Start Scan
-    UI->>Server: POST /cases/yunnan_19/scan (SSE channel)
-    Server->>GPU: Dispatches volume to GPU
-    loop Telemetry streaming
-        GPU-->>Server: Reasoning token: wash-in asymmetry detected
-        Server-->>UI: Server-Sent Event push
-    end
-    GPU->>GPU: Generates 3D volumetric contours
-    GPU-->>Server: Mask tensor and classification
-    Server-->>UI: Updates canvas with 3D mesh
-    Clinician->>UI: Reviews contours and clicks Export DICOM-SR
-    UI->>Server: GET /cases/yunnan_19/export-sr
-    Server-->>Clinician: Returns TID 1500 DICOM file
-```
-
-## 3. Supported cohorts and models
-
-### Clinical cohorts
-* Breast DCE-MRI: Yunnan cohort (`yunnan_1`, `yunnan_2`, `yunnan_9`, `yunnan_19`), DUKE cohort (`DUKE_211`).
-* Neuro-oncology: BraTS 2021 brain mpMRI (`#01081`, `#00251`, `BRATS_239`).
-* Abdominal and body CT: MSD Task09 Spleen, MSD Task05 Prostate, MSD Task03 Liver, MSD Task07 Pancreas, MSD Task06 Lung, DeepLesion.
-
-### Model backbones
-* BEATNet CICE: Multi-organ 3D segmentation model.
-* Qwen3.5 Multimodal VLM (0.8B) with MedSAM-2: Multimodal triage with reasoning traces.
-* Dual-model consensus: Agreement filtering across segmentations.
-
-## 4. API endpoints
-
-| Endpoint | Method | Params | Description |
-| :--- | :---: | :--- | :--- |
-| `/cases` | `GET` | None | Lists available cases with modality and metadata. |
-| `/cases/{case_id}` | `GET` | `phase: str`, `show_gt: int` | Renders case dossier and active slice stage. |
-| `/cases/{case_id}/scan` | `POST` | `model_type: str` | Dispatches scan and streams reasoning output. |
-| `/cases/{case_id}/status` | `GET` | None | Returns progress percentage and Dice scores. |
-| `/cases/{case_id}/export-sr` | `GET` | None | Downloads standardized DICOM-SR TID 1500 report. |
-
-## 5. Quickstart
+Requires Python 3.10 or newer.
 
 ```bash
-# Clone the repository
-git clone https://github.com/Keshavj-13/flowstudio-medical-pacs-workstation.git
-cd flowstudio-medical-pacs-workstation
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the workstation server
-uvicorn server:app --host 0.0.0.0 --port 8070
-
-# Or run the self-contained deployment server
-python deploy/app.py
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m uvicorn server:app --host 0.0.0.0 --port 8070
 ```
+
+Open port 8070. The case library reports which configured volumes are actually mounted. A fresh checkout can start without the research repositories or GPU weights. Upload a .nii or .nii.gz file to use viewing mode; uploaded volumes do not infer an organ or modality automatically.
+
+The built-in catalog points to the existing server's dataset locations. Cloning the code does not copy these datasets or model checkpoints.
+
+## Enable segmentation
+
+Use the server's established CUDA/PyTorch environment. Install requirements-inference.txt only after choosing the PyTorch build appropriate to that server. These paths are configurable:
+
+| Environment variable | Default | Required content |
+| --- | --- | --- |
+| BEATNET_DIR | /workspace/beatnet_v3_asymptotic_ablation | cice_beatnet.py and checkpoints/best_cice_multitask.pth, or checkpoints/best_real_beatnet.pth |
+| SEG_DEMO_DIR | /workspace/seg_demo | best_model2020.pth for the legacy model |
+| VLM_DIR | /workspace/qwen_interwoven_nuclear_80dice_training | Reserved research path; no working VLM service connection in this workstation |
+| FLOWSTUDIO_JOBS_DIR | jobs/ beside server.py | Writable runtime storage for uploads, masks, and metrics |
+
+The model selector exposes CICE-BEATNet and Legacy BEATNet. Missing dependencies or weights produce an actionable error. The root engine's historical VLM implementation uses image heuristics rather than calling a language model, so VLM and VLM consensus are rejected by the workstation API.
+
+The dedicated medical_reasoning_studio is a separate application. Its code and models are not included here. See [deployment status and handoff](docs/DEPLOYMENT.md).
+
+## Results
+
+The result panel uses returned voxel counts, volume, inference duration, and reference overlap. Dice and IoU display N/A when a reference mask is unavailable. Prediction overlays and meshes never substitute a reference mask. Saved prediction NIfTI files retain the input affine. The older diagnostic_dossier.html remains as a historical template and is not used by the scan route.
+
+## Endpoints
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | /healthz | Viewer liveness, independent of model readiness |
+| GET | /cases | Configured case catalog with availability |
+| GET | /cohort-drawer | Searchable study library |
+| POST | /cases/{case_id}/select | Mount a configured volume |
+| POST | /cases/upload | Upload NIfTI, up to 512 MiB |
+| GET | /cases/{case_id}/slice | PNG slice; plane, index, window/level, LUT and overlays |
+| POST | /cases/{case_id}/scan | Start the selected model workflow |
+| GET | /cases/{case_id}/scan-status | Execute inference and render results; format=json returns metrics |
+| GET | /api/jobs/{case_id}/mesh3d | Predicted foreground voxel geometry |
+| GET | /api/jobs/{case_id}/dice-audit | Reference overlap audit when both masks exist |
+
+Health success does not verify GPU inference. The scan-status endpoint performs inference and should not be used as a health poll.
+
+## Verification
+
+```bash
+.venv/bin/python -m pip install pytest httpx playwright
+.venv/bin/python -m playwright install chromium
+RUN_BROWSER_TESTS=1 .venv/bin/python -m pytest -q tests
+```
+
+Metric tests require PyTorch and MONAI. GitHub Actions runs the viewer/API/browser tests and a separate CPU metric job. The browser test saves desktop and mobile screenshots as workflow artifacts. These checks use artificial test volumes; they do not validate the real server's checkpoints or GPU execution.
+
+## Model storage
+
+Keep application source in GitHub and version model releases in private Hugging Face model repositories, or use DVC with your own object storage. See [the recommendation and tradeoffs](docs/MODEL_STORAGE.md).
+
+## Separate synthetic demo
+
+deploy/app.py is a separate synthetic-phantom demonstration. It is not the GPU workstation or the standalone VLM studio.
