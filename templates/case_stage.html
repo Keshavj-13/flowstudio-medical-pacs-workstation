@@ -1,14 +1,46 @@
-<div class="case-viewer-container" id="case-viewer-container">
+<div class="case-viewer-container" id="case-viewer-container" data-current-case-id="{{ case.case_id }}">
   <!-- Top Floating Clinical HUD -->
   <div class="canvas-hud-top">
     <div class="hud-pill-group">
+      <div class="hud-pill" style="padding: 2px 6px;">
+        <span class="label" style="margin-right: 4px;">Study:</span>
+        <select id="quick-study-select" class="dock-btn"
+                style="background: #090d16; border: 1px solid var(--glass-border); padding: 2px 8px; border-radius: var(--radius-pill); color: var(--clinical-cyan); font-weight: 600; font-size: 11px; cursor: pointer; max-width: 240px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"
+                aria-label="Select Diagnostic Study"
+                onchange="loadStudyCase(this.value)">
+          {% if cases %}
+          <optgroup label="Brain mpMRI">
+            {% for c in cases %}{% if c.organ == 'brain' %}
+            <option value="{{ c.case_id }}" {% if case.case_id == c.case_id %}selected{% endif %}>{{ c.name }}{% if c.benchmark_dice %} [{{ (c.benchmark_dice * 100)|round(1) }}%]{% endif %}</option>
+            {% endif %}{% endfor %}
+          </optgroup>
+          <optgroup label="Breast DCE-MRI">
+            {% for c in cases %}{% if c.organ == 'breast' %}
+            <option value="{{ c.case_id }}" {% if case.case_id == c.case_id %}selected{% endif %}>{{ c.name }}{% if c.benchmark_dice %} [{{ (c.benchmark_dice * 100)|round(1) }}%]{% endif %}</option>
+            {% endif %}{% endfor %}
+          </optgroup>
+          <optgroup label="Abdominal CT">
+            {% for c in cases %}{% if c.modality == '3d_ct' or c.organ in ['spleen', 'colon', 'liver', 'pancreas', 'lung', 'pan_body'] %}
+            <option value="{{ c.case_id }}" {% if case.case_id == c.case_id %}selected{% endif %}>{{ c.name }}{% if c.benchmark_dice %} [{{ (c.benchmark_dice * 100)|round(1) }}%]{% endif %}</option>
+            {% endif %}{% endfor %}
+          </optgroup>
+          <optgroup label="Pelvic mpMRI">
+            {% for c in cases %}{% if c.organ == 'prostate' %}
+            <option value="{{ c.case_id }}" {% if case.case_id == c.case_id %}selected{% endif %}>{{ c.name }}{% if c.benchmark_dice %} [{{ (c.benchmark_dice * 100)|round(1) }}%]{% endif %}</option>
+            {% endif %}{% endfor %}
+          </optgroup>
+          {% else %}
+          <option value="{{ case.case_id }}" selected>{{ case.name }}</option>
+          {% endif %}
+        </select>
+      </div>
       <div class="hud-pill">
-        <span class="label">Patient / Scan:</span>
-        <span class="val" style="color: #fff;">{{ case.name }}</span>
+        <span class="label">Organ:</span>
+        <span class="val" style="color: var(--clinical-cyan); text-transform: uppercase;">{{ case.organ }}</span>
       </div>
       <div class="hud-pill">
         <span class="label">Modality:</span>
-        <span class="val">DCE-MRI (5-Phase)</span>
+        <span class="val">{{ case.modality|upper }}</span>
       </div>
       <div class="hud-pill">
         <span class="label">Matrix:</span>
@@ -18,39 +50,119 @@
         <span class="label">Slice:</span>
         <span class="val" id="top-slice-pill">Z = {{ case.initial_slice }} / {{ case.shape_xyz[2] - 1 }}</span>
       </div>
+      {% if case.benchmark_dice %}
+      <div class="hud-pill">
+        <span class="label">Val Benchmark:</span>
+        <span class="val" style="color: #a5b4fc; font-weight: 600;">{{ (case.benchmark_dice * 100)|round(1) }}%</span>
+      </div>
+      {% endif %}
     </div>
 
     <!-- Start AI Diagnostic Scan Button & Mask Controls -->
-    <div class="hud-pill-group">
+    <div class="hud-pill-group controls-group">
       <button class="dock-btn" id="btn-contour-toggle" onclick="toggleContour(this)">
         Contour: <span id="contour-state-label">OFF</span>
       </button>
       <button class="dock-btn" id="btn-overlay-toggle" onclick="toggleOverlay(this)">
         Mask: <span id="overlay-state-label" style="color: var(--text-muted);">OFF</span>
       </button>
+      <button class="dock-btn" id="btn-gt-toggle" onclick="toggleGT(this)" title="Toggle Ground Truth Annotation">
+        GT: <span id="gt-state-label" style="color: var(--text-muted);">OFF</span>
+      </button>
 
-      <select id="model-select" name="model_type" class="dock-btn" style="background: rgba(12,17,28,0.85); border: 1px solid var(--glass-border); padding: 6px 12px; border-radius: var(--radius-pill); color: var(--text-primary); font-size: 11px;">
-        <option value="qwen_nuclear_vlm" selected>Backbone: Qwen3.5 Multimodal VLM</option>
-        <option value="flexible_unet">Backbone: FlexibleUNet Baseline</option>
+      <!-- Model Selector -->
+      <select id="model-select" name="model_type" class="dock-btn"
+              style="background: #0f172a; border: 1px solid var(--glass-border); padding: 5px 10px; border-radius: var(--radius-pill); color: var(--text-primary); font-size: 11px; max-width: 215px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;"
+              aria-label="Select AI Inference Model">
+        <option value="cice_beatnet" selected>BEATNet CICE (3D UNet)</option>
+        <option value="legacy_beatnet">BEATNet Original (FlexibleUNet)</option>
+        <option value="qwen_nuclear_vlm" disabled style="color: #64748b;">[Under Construction] Qwen3.5 VLM</option>
+        <option value="dual_consensus" disabled style="color: #64748b;">[Under Construction] Dual Consensus</option>
       </select>
 
       <button class="btn-start-scan" id="start-scan-btn"
+              type="button"
               hx-post="/cases/{{ case.case_id }}/scan"
               hx-include="#model-select"
               hx-target="#main-stage"
-              hx-swap="innerHTML">
-        <span>Scan</span>
+              hx-swap="innerHTML"
+              aria-label="Run volumetric AI diagnostic scan"
+              title="Run volumetric AI diagnostic scan">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" />
+        </svg>
+        <span class="scan-btn-text">Run Deep Scan</span>
       </button>
+    </div>
+  </div>
+
+  <!-- Cine-Loop & Interactive Tools Bar -->
+  <div class="floating-cine-bar" id="floating-cine-bar">
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <button class="dock-btn" id="btn-cine-play" onclick="toggleCinePlay()" title="Toggle Cine Loop">
+        Cine Play
+      </button>
+      <div style="display: flex; gap: 2px;">
+        <button class="dock-btn" onclick="setCineFPS(5, this)">5 FPS</button>
+        <button class="dock-btn active" onclick="setCineFPS(10, this)">10 FPS</button>
+        <button class="dock-btn" onclick="setCineFPS(20, this)">20 FPS</button>
+      </div>
+      <button class="dock-btn active" id="btn-cine-loop" onclick="toggleCineLoop(this)">Loop</button>
+    </div>
+
+    <div class="dock-divider"></div>
+
+    <div style="display: flex; align-items: center; gap: 4px;">
+      <button class="dock-btn" id="btn-tool-caliper" onclick="toggleCaliperTool(this)">Caliper</button>
+      <button class="dock-btn" id="btn-tool-roi" onclick="toggleROITool(this)">ROI Density</button>
+      <button class="dock-btn" onclick="zoomSlice(1.15)">Zoom +</button>
+      <button class="dock-btn" onclick="zoomSlice(0.85)">Zoom -</button>
+      <button class="dock-btn" onclick="resetZoomPan()">Fit</button>
+    </div>
+
+    <!-- Phase & Sequence Selector -->
+    <div class="dock-divider"></div>
+    <div style="display: flex; align-items: center; gap: 4px;" id="phase-selector-group">
+      {% if case.organ == 'breast' %}
+      <span style="font-size: 10px; color: var(--text-muted); margin-right: 2px;">Phase:</span>
+      <button class="dock-btn" onclick="setPhase('P1', this)">P1 Pre</button>
+      <button class="dock-btn active" onclick="setPhase('P2', this)">P2 Art</button>
+      <button class="dock-btn" onclick="setPhase('P3', this)">P3 Ven</button>
+      <button class="dock-btn" onclick="setPhase('P4', this)">P4 Del</button>
+      <button class="dock-btn" onclick="setPhase('P5', this)">P5 Late</button>
+      <button class="dock-btn" style="color: var(--clinical-cyan); border-color: rgba(0, 240, 255, 0.4);" onclick="setPhase('SUB', this)">Sub (P2-P1)</button>
+      {% elif case.organ == 'brain' %}
+      <span style="font-size: 10px; color: var(--text-muted); margin-right: 2px;">Seq:</span>
+      <button class="dock-btn" onclick="setPhase('T1', this)">T1</button>
+      <button class="dock-btn active" onclick="setPhase('T1CE', this)">T1CE</button>
+      <button class="dock-btn" onclick="setPhase('T2', this)">T2</button>
+      <button class="dock-btn" onclick="setPhase('FLAIR', this)">FLAIR</button>
+      {% else %}
+      <span style="font-size: 10px; color: var(--text-muted); margin-right: 2px;">CT Window:</span>
+      <button class="dock-btn active" onclick="setWL(350, 40, this)">Soft Tissue</button>
+      <button class="dock-btn" onclick="setWL(1500, 450, this)">Bone</button>
+      <button class="dock-btn" onclick="setWL(1500, -600, this)">Lung</button>
+      <button class="dock-btn" onclick="setWL(150, 30, this)">Liver</button>
+      {% endif %}
     </div>
   </div>
 
   <!-- Central Canvas Viewer Area -->
   <div class="viewer-canvas-area" id="viewer-canvas-area">
-    <div class="dicom-image-wrapper">
+    <div class="dicom-image-wrapper" id="dicom-image-wrapper" onclick="handleCanvasClick(event)">
       <img id="dicom-slice-img"
            class="dicom-slice-img"
            src="/cases/{{ case.case_id }}/slice?plane=axial&index={{ case.initial_slice }}&overlay=0&lut=default"
-           alt="DCE-MRI Slice" />
+           alt="DICOM Slice" />
+
+      <!-- Caliper SVG Layer -->
+      <svg id="caliper-svg" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 25;"></svg>
+
+      <!-- Telemetry Readout Badge -->
+      <div id="telemetry-badge" style="position: absolute; bottom: 8px; left: 8px; background: rgba(11, 17, 32, 0.85); border: 1px solid var(--glass-border); border-radius: var(--radius-xs); padding: 3px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--clinical-cyan); pointer-events: none;">
+        Slice: {{ case.initial_slice }} | Plane: Axial | LUT: Default
+      </div>
     </div>
   </div>
 
@@ -78,10 +190,10 @@
 
     <!-- Window / Level Presets -->
     <div class="dock-group">
-      <button class="dock-btn active" onclick="setWL(350, 180, this)" title="Window: 350, Level: 180">Breast DCE</button>
-      <button class="dock-btn" onclick="setWL(500, 250, this)" title="Window: 500, Level: 250">Parenchyma</button>
-      <button class="dock-btn" onclick="setWL(1000, 400, this)" title="Window: 1000, Level: 400">Bone</button>
-      <button class="dock-btn" onclick="setWL(400, 200, this)" title="Window: 400, Level: 200">Soft Tissue</button>
+      <button class="dock-btn active" onclick="setWL(null, null, this)">Auto</button>
+      <button class="dock-btn" onclick="setWL(350, 180, this)" title="Window: 350, Level: 180">Soft Tissue</button>
+      <button class="dock-btn" onclick="setWL(80, 40, this)" title="Brain: 80 / 40">Brain</button>
+      <button class="dock-btn" onclick="setWL(1000, 400, this)" title="Bone: 1000 / 400">Bone</button>
     </div>
 
     <div class="dock-divider"></div>
@@ -92,111 +204,271 @@
       <button class="dock-btn" onclick="setLUT('cyan_hot', this)">Cyan Hot</button>
       <button class="dock-btn" onclick="setLUT('turbo', this)">Turbo</button>
       <button class="dock-btn" onclick="setLUT('viridis', this)">Viridis</button>
-      <button class="dock-btn" onclick="setLUT('inferno', this)">Inferno</button>
       <button class="dock-btn" onclick="setLUT('invert', this)">Invert</button>
     </div>
   </div>
 </div>
 
 <script>
+  if (window.cleanup3DTumorPlot) {
+    try { window.cleanup3DTumorPlot(); } catch(e) {}
+  }
   currentCaseId = "{{ case.case_id }}";
   currentPlane = "axial";
   currentSlice = {{ case.initial_slice }};
   currentOverlay = 0;
+  currentContour = 0;
+  currentShowGT = 0;
   currentLUT = "default";
   currentWC = null;
   currentWW = null;
-  currentContour = 0;
+  currentZoom = 1.0;
+  currentPhase = "{% if case.organ == 'breast' %}P2{% elif case.organ == 'brain' %}T1CE{% else %}CT{% endif %}";
 
-  // Auto-dismiss cohort island when patient scan loads to give edge-to-edge canvas
-  const cohortIsland = document.getElementById("cohort-sidebar");
-  if (cohortIsland && !cohortIsland.classList.contains("collapsed")) {
-    cohortIsland.classList.add("collapsed");
-    const sbLabel = document.getElementById("sidebar-toggle-label");
-    if (sbLabel) sbLabel.innerText = "Cohorts";
-  }
+  // Cine Player State
+  isCinePlaying = false;
+  cineFPS = 10;
+  cineInterval = null;
+  maxSlices = {{ case.shape_xyz[2] }};
 
-  function toggleOverlay(btn) {
-    currentOverlay = currentOverlay === 1 ? 0 : 1;
-    const label = document.getElementById("overlay-state-label");
-    if (label) {
-      label.innerText = currentOverlay === 1 ? "ON" : "OFF";
-      label.style.color = currentOverlay === 1 ? "var(--clinical-emerald)" : "var(--text-muted)";
-    }
-    if (btn) btn.classList.toggle("active", currentOverlay === 1);
-    refreshSliceImg();
-  }
-
-  function toggleContour(btn) {
-    currentContour = currentContour === 1 ? 0 : 1;
-    const label = document.getElementById("contour-state-label");
-    if (label) {
-      label.innerText = currentContour === 1 ? "ON" : "OFF";
-      label.style.color = currentContour === 1 ? "var(--clinical-cyan)" : "var(--text-muted)";
-    }
-    if (btn) btn.classList.toggle("active", currentContour === 1);
-    refreshSliceImg();
-  }
-
-  function refreshSliceImg() {
-    const img = document.getElementById("dicom-slice-img");
-    if (!img) return;
-    let url = `/cases/${currentCaseId}/slice?plane=${currentPlane}&index=${currentSlice}&overlay=${currentOverlay}&lut=${currentLUT}&contour=${currentContour}`;
-    if (currentWC !== null && currentWW !== null) {
-      url += `&window_center=${currentWC}&window_width=${currentWW}`;
-    }
-    img.src = url;
-    document.getElementById("slice-index-label").innerText = `Z: ${currentSlice}`;
-    const pill = document.getElementById("top-slice-pill");
-    if (pill) pill.innerText = `Z = ${currentSlice} / {{ case.shape_xyz[2] - 1 }}`;
-  }
+  // Tools State
+  caliperActive = false;
+  caliperPoints = [];
+  roiActive = false;
 
   function updateSlice(val) {
     currentSlice = parseInt(val);
+    document.getElementById("slice-index-label").innerText = `Z: ${currentSlice}`;
+    const pill = document.getElementById("top-slice-pill");
+    if (pill) pill.innerText = `Z = ${currentSlice} / ${maxSlices - 1}`;
     refreshSliceImg();
   }
 
   function setPlane(plane) {
     currentPlane = plane;
-    document.querySelectorAll("[id^=plane-]").forEach(b => b.classList.remove("active"));
-    document.getElementById(`plane-${plane}`).classList.add("active");
+    document.querySelectorAll('#plane-axial, #plane-coronal, #plane-sagittal').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById(`plane-${plane}`);
+    if (btn) btn.classList.add('active');
+
     const slider = document.getElementById("slice-slider");
     if (plane === "axial") slider.max = {{ case.shape_xyz[2] - 1 }};
     else if (plane === "coronal") slider.max = {{ case.shape_xyz[1] - 1 }};
     else if (plane === "sagittal") slider.max = {{ case.shape_xyz[0] - 1 }};
-    currentSlice = Math.floor(slider.max / 2);
-    slider.value = currentSlice;
+
+    slider.value = Math.min(parseInt(slider.value), parseInt(slider.max));
+    currentSlice = parseInt(slider.value);
+    refreshSliceImg();
+  }
+
+  function setPhase(phase, btn) {
+    currentPhase = phase;
+    if (btn && btn.parentElement) {
+      btn.parentElement.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
     refreshSliceImg();
   }
 
   function setWL(w, l, btn) {
     currentWW = w;
     currentWC = l;
-    btn.parentNode.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
+    btn.parentElement.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     refreshSliceImg();
   }
 
   function setLUT(lut, btn) {
     currentLUT = lut;
-    btn.parentNode.querySelectorAll(".dock-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
+    btn.parentElement.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     refreshSliceImg();
   }
 
-  // Mousewheel slice scrolling
-  const viewerArea = document.getElementById("viewer-canvas-area");
-  if (viewerArea) {
-    viewerArea.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const slider = document.getElementById("slice-slider");
-      if (!slider) return;
-      const step = e.deltaY < 0 ? 1 : -1;
-      const nextVal = Math.min(parseInt(slider.max), Math.max(parseInt(slider.min), parseInt(slider.value) + step));
-      if (nextVal !== parseInt(slider.value)) {
-        slider.value = nextVal;
-        updateSlice(nextVal);
+  function toggleOverlay(btn) {
+    currentOverlay = currentOverlay === 1 ? 0 : 1;
+    const lbl = document.getElementById("overlay-state-label");
+    if (currentOverlay === 1) {
+      btn.classList.add("active");
+      lbl.innerText = "ON";
+      lbl.style.color = "var(--clinical-cyan)";
+    } else {
+      btn.classList.remove("active");
+      lbl.innerText = "OFF";
+      lbl.style.color = "var(--text-muted)";
+    }
+    refreshSliceImg();
+  }
+
+  function toggleContour(btn) {
+    currentContour = currentContour === 1 ? 0 : 1;
+    const lbl = document.getElementById("contour-state-label");
+    if (currentContour === 1) {
+      btn.classList.add("active");
+      lbl.innerText = "ON";
+      lbl.style.color = "var(--clinical-cyan)";
+    } else {
+      btn.classList.remove("active");
+      lbl.innerText = "OFF";
+      lbl.style.color = "var(--text-muted)";
+    }
+    refreshSliceImg();
+  }
+
+  function toggleGT(btn) {
+    currentShowGT = currentShowGT === 1 ? 0 : 1;
+    const lbl = document.getElementById("gt-state-label");
+    if (currentShowGT === 1) {
+      btn.classList.add("active");
+      lbl.innerText = "ON";
+      lbl.style.color = "var(--clinical-emerald)";
+      currentOverlay = 1;
+      const obtn = document.getElementById("btn-overlay-toggle");
+      if (obtn) obtn.classList.add("active");
+      const olbl = document.getElementById("overlay-state-label");
+      if (olbl) { olbl.innerText = "ON"; olbl.style.color = "var(--clinical-emerald)"; }
+    } else {
+      btn.classList.remove("active");
+      lbl.innerText = "OFF";
+      lbl.style.color = "var(--text-muted)";
+    }
+    refreshSliceImg();
+  }
+
+  function refreshSliceImg() {
+    const img = document.getElementById("dicom-slice-img");
+    if (!img) return;
+
+    let url = `/cases/${currentCaseId}/slice?plane=${currentPlane}&index=${currentSlice}&overlay=${currentOverlay}&lut=${currentLUT}&contour=${currentContour}&show_gt=${currentShowGT}&phase=${currentPhase}`;
+    if (currentWC !== null && currentWW !== null) {
+      url += `&window_center=${currentWC}&window_width=${currentWW}`;
+    }
+
+    img.src = url;
+
+    const badge = document.getElementById("telemetry-badge");
+    if (badge) {
+      badge.innerText = `Slice: ${currentSlice} | Plane: ${currentPlane.toUpperCase()} | Phase: ${currentPhase} | LUT: ${currentLUT.toUpperCase()}`;
+    }
+  }
+
+  // Cine loop controls
+  function toggleCinePlay() {
+    isCinePlaying = !isCinePlaying;
+    const btn = document.getElementById("btn-cine-play");
+    if (isCinePlaying) {
+      btn.classList.add("active");
+      btn.innerText = "Pause";
+      cineInterval = setInterval(stepCineSlice, 1000 / cineFPS);
+    } else {
+      btn.classList.remove("active");
+      btn.innerText = "Cine Play";
+      clearInterval(cineInterval);
+    }
+  }
+
+  function stepCineSlice() {
+    const slider = document.getElementById("slice-slider");
+    let nextVal = parseInt(slider.value) + 1;
+    if (nextVal > parseInt(slider.max)) nextVal = 0;
+    slider.value = nextVal;
+    updateSlice(nextVal);
+  }
+
+  function setCineFPS(fps, btn) {
+    cineFPS = fps;
+    btn.parentElement.querySelectorAll('.dock-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (isCinePlaying) {
+      clearInterval(cineInterval);
+      cineInterval = setInterval(stepCineSlice, 1000 / cineFPS);
+    }
+  }
+
+  function toggleCineLoop(btn) {
+    btn.classList.toggle("active");
+  }
+
+  // Zoom / Pan
+  function zoomSlice(factor) {
+    currentZoom = Math.max(0.5, Math.min(4.0, currentZoom * factor));
+    const img = document.getElementById("dicom-slice-img");
+    if (img) img.style.transform = `scale(${currentZoom})`;
+  }
+
+  function resetZoomPan() {
+    currentZoom = 1.0;
+    const img = document.getElementById("dicom-slice-img");
+    if (img) img.style.transform = `scale(1.0)`;
+  }
+
+  // Caliper Tool
+  function toggleCaliperTool(btn) {
+    caliperActive = !caliperActive;
+    roiActive = false;
+    document.getElementById("btn-tool-roi").classList.remove("active");
+    btn.classList.toggle("active");
+    caliperPoints = [];
+    const svg = document.getElementById("caliper-svg");
+    svg.style.display = caliperActive ? "block" : "none";
+    svg.innerHTML = "";
+  }
+
+  function toggleROITool(btn) {
+    roiActive = !roiActive;
+    caliperActive = false;
+    document.getElementById("btn-tool-caliper").classList.remove("active");
+    btn.classList.toggle("active");
+  }
+
+  function handleCanvasClick(event) {
+    const wrapper = document.getElementById("dicom-image-wrapper");
+    const rect = wrapper.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (caliperActive) {
+      caliperPoints.push({ x, y });
+      if (caliperPoints.length === 2) {
+        drawCaliperLine(caliperPoints[0], caliperPoints[1]);
+        caliperPoints = [];
       }
-    }, { passive: false });
+    } else if (roiActive) {
+      sampleROI(x, y);
+    }
+  }
+
+  function drawCaliperLine(p1, p2) {
+    const svg = document.getElementById("caliper-svg");
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    const distMm = (distPx * 0.75).toFixed(1);
+
+    svg.innerHTML = `
+      <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="#00f0ff" stroke-width="2" stroke-dasharray="3,3" />
+      <circle cx="${p1.x}" cy="${p1.y}" r="3" fill="#00f0ff" />
+      <circle cx="${p2.x}" cy="${p2.y}" r="3" fill="#00f0ff" />
+      <text x="${(p1.x + p2.x) / 2 + 5}" y="${(p1.y + p2.y) / 2 - 5}" fill="#00f0ff" font-size="11" font-family="monospace">${distMm} mm</text>
+    `;
+  }
+
+  async function sampleROI(x, y) {
+    const formData = new FormData();
+    formData.append("cx", Math.round(x));
+    formData.append("cy", Math.round(y));
+    formData.append("radius", 15);
+    formData.append("plane", currentPlane);
+    formData.append("slice_idx", currentSlice);
+
+    try {
+      const res = await fetch(`/cases/${currentCaseId}/roi-sample`, { method: "POST", body: formData });
+      const data = await res.json();
+      const badge = document.getElementById("telemetry-badge");
+      if (badge) {
+        badge.innerText = `ROI [X:${Math.round(x)}, Y:${Math.round(y)}] Mean: ${data.mean} | Min: ${data.min} | Max: ${data.max} | Std: ${data.std}`;
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 </script>

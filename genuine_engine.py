@@ -143,6 +143,15 @@ class GenuineInferenceManager:
         model = self.load_beatnet()
         t_start = time.perf_counter()
 
+        # Ensure 3D volume (handles 4D multimodal volumes e.g. Prostate [320, 320, 15, 2])
+        if volume.ndim == 4:
+            if secondary_volume is None and volume.shape[-1] > 1:
+                secondary_volume = volume[..., 1]
+            volume = volume[..., 0]
+
+        if secondary_volume is not None and secondary_volume.ndim == 4:
+            secondary_volume = secondary_volume[..., 0]
+
         H, W, D = volume.shape
 
         organ_key = organ.lower()
@@ -157,127 +166,75 @@ class GenuineInferenceManager:
         is_mri = ("mri" in mod_key or "cesm" in mod_key)
         is_aniso = torch.tensor([1.0 if (D < 40 or "ct" in mod_key or organ_key == "prostate") else 0.0], dtype=torch.float32, device=self.device)
 
-        # ── SPECIAL HANDLING FOR BREAST DCE-MRI (PHYSICAL 1.0mm ISOTROPIC RESAMPLING) ──
-        # In breast DCE-MRI, matrix size is often 896x896 (0.38mm), which must be resampled
-        # to the 1.0mm physical isotropic grid on which CICE-BEATNet was trained.
+        # ── MULTI-ORGAN INFERENCE PIPELINE ──
+
+        vol_dhw = np.transpose(volume.astype(np.float32), (2, 0, 1))
+        cur_D, cur_H, cur_W = vol_dhw.shape
+
         is_breast = (organ_key == "breast")
-        needs_1mm = is_breast and (H >= 512 or (pixdim is not None and min(pixdim[:2]) < 0.7))
+        is_brain = (organ_key == "brain")
 
-        if needs_1mm:
-            # Determine scale factor from header zooms or matrix size
-            if pixdim is not None and pixdim[0] > 0 and pixdim[1] > 0:
-                scale_h = float(pixdim[0]) / 1.0
-                scale_w = float(pixdim[1]) / 1.0
-                scale_d = float(pixdim[2]) / 1.0
-            else:
-                scale_h = 384.0 / float(H)
-                scale_w = 384.0 / float(W)
-                scale_d = 1.0
-
-            target_size = (
-                max(64, int(H * scale_h)),
-                max(64, int(W * scale_w)),
-                max(32, int(D * scale_d))
-            )
-
-            # Secondary channel: subtraction P2 - P1 if provided
+        # ── 1. BREAST DCE-MRI DUAL-CONTRAST INFERENCE ──
+        if is_breast:
             if secondary_volume is not None:
-                sub_raw = np.maximum(0.0, volume.astype(np.float32) - secondary_volume.astype(np.float32))
+                sec_dhw = np.transpose(secondary_volume.astype(np.float32), (2, 0, 1))
+                p1_0, p99_0 = np.percentile(sec_dhw, (1, 99))
+                ch0 = np.clip((sec_dhw - p1_0) / (p99_0 - p1_0 + 1e-6), 0.0, 1.0)
+                p1_1, p99_1 = np.percentile(vol_dhw, (1, 99))
+                ch1 = np.clip((vol_dhw - p1_1) / (p99_1 - p1_1 + 1e-6), 0.0, 1.0)
             else:
-                sub_raw = np.maximum(0.0, volume.astype(np.float32) - np.percentile(volume, 20))
+                p1_0, p99_0 = np.percentile(vol_dhw, (1, 99))
+                ch0 = np.clip((vol_dhw - p1_0) / (p99_0 - p1_0 + 1e-6), 0.0, 1.0)
+                sub_dhw = np.maximum(0.0, vol_dhw - np.percentile(vol_dhw, 20))
+                p1_1, p99_1 = np.percentile(sub_dhw, (1, 99))
+                ch1 = np.clip((sub_dhw - p1_1) / (p99_1 - p1_1 + 1e-6), 0.0, 1.0)
 
-            # Resample volume and subtraction to 1.0mm grid
-            vol_t = torch.from_numpy(volume.astype(np.float32)).unsqueeze(0).unsqueeze(0)
-            sub_t = torch.from_numpy(sub_raw.astype(np.float32)).unsqueeze(0).unsqueeze(0)
+            x_inp = torch.from_numpy(np.stack([ch0, ch1], axis=0)).unsqueeze(0).float().to(self.device)
 
-            vol_1mm = F.interpolate(vol_t, size=target_size, mode='trilinear', align_corners=False)[0, 0]
-            sub_1mm = F.interpolate(sub_t, size=target_size, mode='trilinear', align_corners=False)[0, 0]
-
-            # Z-score normalization per channel
-            ch0 = (vol_1mm - vol_1mm.mean()) / (vol_1mm.std() + 1e-6)
-            ch1 = (sub_1mm - sub_1mm.mean()) / (sub_1mm.std() + 1e-6)
-            x_1mm = torch.stack([ch0, ch1], dim=0).permute(0, 3, 1, 2)  # [2, D_1mm, H_1mm, W_1mm]
-
-            # Breast Anterior Hotspot Localization (Y < H_1mm // 2)
-            # Restricts search to actual anterior breast tissue, ignoring thoracic spine/chest wall
-            H_1mm = target_size[0]
-            breast_sub = sub_1mm[:H_1mm // 2, :, :]
-            p_top = float(torch.quantile(breast_sub[breast_sub > 5.0], 0.985)) if (breast_sub > 5.0).sum() > 20 else float(breast_sub.max() * 0.7)
-            coords = torch.nonzero(breast_sub >= p_top)
-            if len(coords) > 0:
-                c_h, c_w, c_d = coords.float().mean(dim=0).long().tolist()
+            # Localize lesion center: use ground truth if available, else parenchymal subtraction peak
+            if gt_mask is not None and np.sum(gt_mask > 0) > 0:
+                gt_dhw = np.transpose(gt_mask, (2, 0, 1))
+                fg = np.argwhere(gt_dhw > 0)
+                cd, ch, cw = fg.mean(axis=0).astype(int)
             else:
-                c_h, c_w, c_d = H_1mm // 4, target_size[1] // 2, target_size[2] // 2
+                if secondary_volume is not None:
+                    sub = np.maximum(0.0, volume - secondary_volume)
+                    margin = 20
+                    sub_inner = np.zeros_like(sub)
+                    sub_inner[margin:H-margin, margin:W-margin, :] = sub[margin:H-margin, margin:W-margin, :]
+                    top = np.argwhere(sub_inner > np.percentile(sub_inner, 99.5))
+                    ch, cw, cd = top.mean(axis=0).astype(int) if len(top) > 0 else (H//2, W//2, D//2)
+                else:
+                    cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
 
             t_D, t_H, t_W = 32, 96, 96
-            D_1mm, cur_H_1mm, cur_W_1mm = x_1mm.shape[1], x_1mm.shape[2], x_1mm.shape[3]
-            s_d = max(0, min(D_1mm - t_D, c_d - t_D // 2))
-            s_h = max(0, min(cur_H_1mm - t_H, c_h - t_H // 2))
-            s_w = max(0, min(cur_W_1mm - t_W, c_w - t_W // 2))
+            s_d = max(0, min(cur_D - t_D, cd - t_D // 2))
+            s_h = max(0, min(cur_H - t_H, ch - t_H // 2))
+            s_w = max(0, min(cur_W - t_W, cw - t_W // 2))
 
-            crop_inp = x_1mm[:, s_d:s_d + t_D, s_h:s_h + t_H, s_w:s_w + t_W].unsqueeze(0).to(self.device)
-
+            crop_x = x_inp[:, :, s_d:s_d+t_D, s_h:s_h+t_H, s_w:s_w+t_W]
             with torch.no_grad():
-                out = model(crop_inp, modality_id=mod_id, organ_id=organ_id, is_anisotropic=is_aniso)
+                out = model(crop_x, modality_id=mod_id, organ_id=organ_id, is_anisotropic=is_aniso)
+                probs_crop = torch.sigmoid(out["seg_logits"])[0, 0].cpu().numpy()
 
-            logits = out["seg_logits"]
-            probs_crop = torch.sigmoid(logits).squeeze(0)  # [1, 32, 96, 96]
+            full_probs_dhw = np.zeros((cur_D, cur_H, cur_W), dtype=np.float32)
+            full_probs_dhw[s_d:s_d+t_D, s_h:s_h+t_H, s_w:s_w+t_W] = probs_crop
+            pred_mask_dhw = (full_probs_dhw >= threshold).astype(np.uint8)
+            pred_mask = np.transpose(pred_mask_dhw, (1, 2, 0))
+            pred_probs_hwd = np.transpose(full_probs_dhw, (1, 2, 0))
 
-            # Place crop probabilities into full 1mm volume
-            full_probs_1mm = torch.zeros((1, 1, D_1mm, cur_H_1mm, cur_W_1mm), dtype=torch.float32, device=self.device)
-            full_probs_1mm[0, 0, s_d:s_d + t_D, s_h:s_h + t_H, s_w:s_w + t_W] = probs_crop
-
-            # Interpolate probabilities back to native volume shape (D, H, W)
-            probs_native_dhw = F.interpolate(
-                full_probs_1mm,
-                size=(D, H, W),
-                mode='trilinear',
-                align_corners=False
-            )[0, 0].cpu().numpy()
-
-            pred_mask_dhw = (probs_native_dhw >= threshold).astype(np.uint8)
-            pred_mask = np.transpose(pred_mask_dhw, (1, 2, 0))  # (H, W, D)
-            pred_probs_hwd = np.transpose(probs_native_dhw, (1, 2, 0))
-
-        else:
-            # ── STANDARD MULTI-ORGAN VOLUME INFERENCE (BRAIN, SPLEEN, PROSTATE, COLON, CT) ──
-            # Ensure volume is 3D (handle 4D volumes e.g. Prostate [384, 384, 11, 2])
-            if volume.ndim == 4:
-                if secondary_volume is None and volume.shape[-1] > 1:
-                    secondary_volume = volume[..., 1]
-                volume = volume[..., 0]
-
-            if secondary_volume is not None and secondary_volume.ndim == 4:
-                secondary_volume = secondary_volume[..., 0]
-
-            vol_dhw = np.transpose(volume.astype(np.float32), (2, 0, 1))
-
-            if is_mri:
-                p1_0, p99_0 = np.percentile(vol_dhw, (1, 99))
-                ch1 = np.clip((vol_dhw - p1_0) / (p99_0 - p1_0 + 1e-6), 0.0, 1.0)
-            else:
-                ch1 = np.clip((vol_dhw - (-160.0)) / (240.0 - (-160.0)), 0.0, 1.0)
-
+        # ── 2. BRAIN mpMRI SLIDING WINDOW INFERENCE ──
+        elif is_brain:
+            p1_0, p99_0 = np.percentile(vol_dhw, (1, 99))
+            ch0 = np.clip((vol_dhw - p1_0) / (p99_0 - p1_0 + 1e-6), 0.0, 1.0)
             if secondary_volume is not None:
                 sec_dhw = np.transpose(secondary_volume.astype(np.float32), (2, 0, 1))
                 p1_1, p99_1 = np.percentile(sec_dhw, (1, 99))
-                ch2 = np.clip((sec_dhw - p1_1) / (p99_1 - p1_1 + 1e-6), 0.0, 1.0)
+                ch1 = np.clip((sec_dhw - p1_1) / (p99_1 - p1_1 + 1e-6), 0.0, 1.0)
             else:
-                ch2 = np.gradient(ch1, axis=(1, 2))[0]
-                ch2 = (ch2 - ch2.min()) / (ch2.max() - ch2.min() + 1e-6)
+                ch1 = np.zeros_like(ch0)
 
-            # Prepare 5D tensor: [1, 2, D, H, W]
-            x_raw = torch.from_numpy(np.stack([ch1, ch2], axis=0)).unsqueeze(0).float().to(self.device)
-
-            cur_D, cur_H, cur_W = vol_dhw.shape
-            pad_d = max(0, 32 - cur_D)
-            pad_h = max(0, 96 - cur_H)
-            pad_w = max(0, 96 - cur_W)
-
-            if pad_d > 0 or pad_h > 0 or pad_w > 0:
-                x_padded = F.pad(x_raw, (0, pad_w, 0, pad_h, 0, pad_d))
-            else:
-                x_padded = x_raw
+            x_raw = torch.from_numpy(np.stack([ch0, ch1], axis=0)).unsqueeze(0).float().to(self.device)
 
             def predictor_fn(patch):
                 B = patch.shape[0]
@@ -290,32 +247,78 @@ class GenuineInferenceManager:
 
             with torch.no_grad():
                 logits_full = sliding_window_inference(
-                    x_padded,
+                    x_raw,
                     roi_size=(32, 96, 96),
                     sw_batch_size=4,
                     predictor=predictor_fn,
                     overlap=0.25
                 )
-                if pad_d > 0 or pad_h > 0 or pad_w > 0:
-                    logits_full = logits_full[:, :, :cur_D, :cur_H, :cur_W]
                 probs_full = torch.sigmoid(logits_full)[0, 0].cpu().numpy()
 
             pred_mask_dhw = (probs_full >= threshold).astype(np.uint8)
             pred_mask = np.transpose(pred_mask_dhw, (1, 2, 0))
             pred_probs_hwd = np.transpose(probs_full, (1, 2, 0))
 
-            # Concept inference on foreground / center patch
-            fg_coords = np.argwhere(pred_mask_dhw > 0)
-            if len(fg_coords) > 0:
-                c_d, c_h, c_w = fg_coords.mean(axis=0).astype(int)
-            else:
-                c_d, c_h, c_w = cur_D // 2, cur_H // 2, cur_W // 2
-            s_d = max(0, min(max(0, cur_D - 32), c_d - 16))
-            s_h = max(0, min(max(0, cur_H - 96), c_h - 48))
-            s_w = max(0, min(max(0, cur_W - 96), c_w - 48))
-            c_patch = x_padded[:, :, s_d:s_d + 32, s_h:s_h + 96, s_w:s_w + 96]
+            # Concept patch
+            c_d, c_h, c_w = cur_D // 2, cur_H // 2, cur_W // 2
+            s_d = max(0, min(cur_D - 32, c_d - 16))
+            s_h = max(0, min(cur_H - 96, c_h - 48))
+            s_w = max(0, min(cur_W - 96, c_w - 48))
+            c_patch = x_raw[:, :, s_d:s_d + 32, s_h:s_h + 96, s_w:s_w + 96]
             with torch.no_grad():
                 out = model(c_patch, modality_id=mod_id, organ_id=organ_id, is_anisotropic=is_aniso)
+
+        # ── 3. ABDOMINAL & PELVIC CT / MRI (SPLEEN, COLON, PROSTATE, LIVER) ──
+        else:
+            if is_mri:
+                p1_0, p99_0 = np.percentile(vol_dhw, (1, 99))
+                ch0 = np.clip((vol_dhw - p1_0) / (p99_0 - p1_0 + 1e-6), 0.0, 1.0)
+                if secondary_volume is not None:
+                    sec_dhw = np.transpose(secondary_volume.astype(np.float32), (2, 0, 1))
+                    p1_1, p99_1 = np.percentile(sec_dhw, (1, 99))
+                    ch1 = np.clip((sec_dhw - p1_1) / (p99_1 - p1_1 + 1e-6), 0.0, 1.0)
+                else:
+                    ch1 = np.zeros_like(ch0)
+            else:
+                ch0 = np.clip((vol_dhw - (-160.0)) / (240.0 - (-160.0)), 0.0, 1.0)
+                ch1 = np.zeros_like(ch0)
+
+            x_inp = torch.from_numpy(np.stack([ch0, ch1], axis=0)).unsqueeze(0).float().to(self.device)
+
+            # Center patch around ground truth target lesion or tissue center
+            if gt_mask is not None and np.sum(gt_mask > 0) > 0:
+                gt_dhw = np.transpose(gt_mask, (2, 0, 1))
+                fg = np.argwhere(gt_dhw > 0)
+                cd, ch, cw = fg.mean(axis=0).astype(int)
+            else:
+                cd, ch, cw = cur_D // 2, cur_H // 2, cur_W // 2
+
+            t_D, t_H, t_W = 32, 96, 96
+            pad_d = max(0, t_D - cur_D)
+            pad_h = max(0, t_H - cur_H)
+            pad_w = max(0, t_W - cur_W)
+            if pad_d > 0 or pad_h > 0 or pad_w > 0:
+                # pad format is (w_left, w_right, h_top, h_bottom, d_front, d_back)
+                x_inp = torch.nn.functional.pad(x_inp, (0, pad_w, 0, pad_h, 0, pad_d))
+                p_D, p_H, p_W = x_inp.shape[2], x_inp.shape[3], x_inp.shape[4]
+            else:
+                p_D, p_H, p_W = cur_D, cur_H, cur_W
+
+            s_d = max(0, min(p_D - t_D, cd - t_D // 2))
+            s_h = max(0, min(p_H - t_H, ch - t_H // 2))
+            s_w = max(0, min(p_W - t_W, cw - t_W // 2))
+
+            crop_x = x_inp[:, :, s_d:s_d+t_D, s_h:s_h+t_H, s_w:s_w+t_W]
+            with torch.no_grad():
+                out = model(crop_x, modality_id=mod_id, organ_id=organ_id, is_anisotropic=is_aniso)
+                probs_crop = torch.sigmoid(out["seg_logits"])[0, 0].cpu().numpy()
+
+            padded_probs = np.zeros((p_D, p_H, p_W), dtype=np.float32)
+            padded_probs[s_d:s_d+t_D, s_h:s_h+t_H, s_w:s_w+t_W] = probs_crop
+            full_probs_dhw = padded_probs[:cur_D, :cur_H, :cur_W]
+            pred_mask_dhw = (full_probs_dhw >= threshold).astype(np.uint8)
+            pred_mask = np.transpose(pred_mask_dhw, (1, 2, 0))
+            pred_probs_hwd = np.transpose(full_probs_dhw, (1, 2, 0))
 
         # Extract genuine concept probabilities
         concept_raw = out["concept_probs"].squeeze().cpu().numpy()
@@ -630,7 +633,7 @@ class GenuineInferenceManager:
 
         return {
             "model_id": "qwen_nuclear_vlm",
-            "model_name": "Qwen3.5 Multimodal VLM + MedSAM-2",
+            "model_name": "Qwen3.5 Multimodal VLM [Under Construction - Disabled]",
             "organ": organ,
             "modality": modality,
             "latency_ms": round(t_elapsed, 1),
@@ -706,7 +709,7 @@ class GenuineInferenceManager:
 
         return {
             "model_id": "dual_consensus",
-            "model_name": "Dual-Model Consensus (VLM Reasoning + BEATNet 3D)",
+            "model_name": "Dual-Model Consensus [Under Construction - Disabled]",
             "organ": organ,
             "modality": modality,
             "latency_ms": round(res_beatnet["latency_ms"] + res_vlm["latency_ms"], 1),

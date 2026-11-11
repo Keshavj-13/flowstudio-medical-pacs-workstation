@@ -96,6 +96,24 @@ CUSTOM_CASE_REGISTRY: Dict[str, Dict[str, Any]] = {}
 MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
     # ── BRAIN mpMRI ──
     {
+        "case_id": "brats_01581",
+        "name": "BraTS 2021 Brain mpMRI (#01581)",
+        "organ": "brain",
+        "modality": "3d_mri",
+        "pathology": "Glioblastoma Multiforme (WHO Grade IV)",
+        "image_path": "/var/tmp/data_reservoir/brats2021_full/BraTS2021_01581/BraTS2021_01581_t1ce.nii.gz",
+        "secondary_path": "/var/tmp/data_reservoir/brats2021_full/BraTS2021_01581/BraTS2021_01581_flair.nii.gz",
+        "mask_path": "/var/tmp/data_reservoir/brats2021_full/BraTS2021_01581/BraTS2021_01581_seg.nii.gz",
+        "shape_xyz": [240, 240, 155],
+        "n_slices": 155,
+        "initial_slice": 76,
+        "has_gt": True,
+        "dataset": "BraTS 2021",
+        "benchmark_dice": 0.9842,
+        "tumor_volume_ml": 50.16,
+        "available_phases": ["T1", "T1CE", "T2", "FLAIR"]
+    },
+    {
         "case_id": "brats_01081",
         "name": "BraTS 2021 Brain mpMRI (#01081)",
         "organ": "brain",
@@ -151,6 +169,23 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
 
     # ── SPLEEN 3D CT ──
     {
+        "case_id": "spleen_21",
+        "name": "MSD Task09 Spleen 3D CT (#21)",
+        "organ": "spleen",
+        "modality": "3d_ct",
+        "pathology": "Normal Spleen Parenchyma Volumetry",
+        "image_path": "/var/tmp/data_reservoir/msd_spleen_task09/Task09_Spleen/imagesTr/spleen_21.nii.gz",
+        "mask_path": "/var/tmp/data_reservoir/msd_spleen_task09/Task09_Spleen/labelsTr/spleen_21.nii.gz",
+        "shape_xyz": [512, 512, 89],
+        "n_slices": 89,
+        "initial_slice": 55,
+        "has_gt": True,
+        "dataset": "MSD Task09 Spleen",
+        "benchmark_dice": 0.9151,
+        "tumor_volume_ml": 35.08,
+        "available_phases": ["CT"]
+    },
+    {
         "case_id": "spleen_14",
         "name": "MSD Task09 Spleen 3D CT (#14)",
         "organ": "spleen",
@@ -186,6 +221,23 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
     },
 
     # ── PROSTATE mpMRI ──
+    {
+        "case_id": "prostate_04",
+        "name": "MSD Task05 Prostate mpMRI (#04)",
+        "organ": "prostate",
+        "modality": "3d_mri",
+        "pathology": "Prostate Peripheral Zone Carcinoma (PIRADS 4/5)",
+        "image_path": "/var/tmp/data_reservoir/msd_prostate_task05/Task05_Prostate/imagesTr/prostate_04.nii.gz",
+        "mask_path": "/var/tmp/data_reservoir/msd_prostate_task05/Task05_Prostate/labelsTr/prostate_04.nii.gz",
+        "shape_xyz": [320, 320, 15],
+        "n_slices": 15,
+        "initial_slice": 8,
+        "has_gt": True,
+        "dataset": "MSD Task05 Prostate",
+        "benchmark_dice": 0.8873,
+        "tumor_volume_ml": 39.75,
+        "available_phases": ["T2"]
+    },
     {
         "case_id": "prostate_28",
         "name": "MSD Task05 Prostate mpMRI (#28)",
@@ -225,6 +277,23 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
 
     # ── LIVER 3D CT ──
     {
+        "case_id": "liver_97",
+        "name": "MSD Task03 Liver 3D CT (#97)",
+        "organ": "liver",
+        "modality": "3d_ct",
+        "pathology": "Hepatic Focal Lesion & Parenchyma",
+        "image_path": "/var/tmp/data_reservoir/msd_liver_task03/Task03_Liver/imagesTr/liver_97.nii.gz",
+        "mask_path": "/var/tmp/data_reservoir/msd_liver_task03/Task03_Liver/labelsTr/liver_97.nii.gz",
+        "shape_xyz": [512, 512, 671],
+        "n_slices": 671,
+        "initial_slice": 548,
+        "has_gt": True,
+        "dataset": "MSD Task03 Liver",
+        "benchmark_dice": 0.9234,
+        "tumor_volume_ml": 148.14,
+        "available_phases": ["CT"]
+    },
+    {
         "case_id": "liver_0",
         "name": "MSD Task03 Liver 3D CT (#0)",
         "organ": "liver",
@@ -243,6 +312,23 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
     },
 
     # ── PANCREAS 3D CT ──
+    {
+        "case_id": "pancreas_377",
+        "name": "MSD Task07 Pancreas 3D CT (#377)",
+        "organ": "pancreas",
+        "modality": "3d_ct",
+        "pathology": "Pancreatic Solid Mass & Duct Dilation",
+        "image_path": "/var/tmp/data_reservoir/msd_pancreas_task07/Task07_Pancreas/imagesTr/pancreas_377.nii.gz",
+        "mask_path": "/var/tmp/data_reservoir/msd_pancreas_task07/Task07_Pancreas/labelsTr/pancreas_377.nii.gz",
+        "shape_xyz": [512, 512, 55],
+        "n_slices": 55,
+        "initial_slice": 28,
+        "has_gt": True,
+        "dataset": "MSD Task07 Pancreas",
+        "benchmark_dice": 0.5997,
+        "tumor_volume_ml": 19.12,
+        "available_phases": ["CT"]
+    },
     {
         "case_id": "pancreas_001",
         "name": "MSD Task07 Pancreas 3D CT (#001)",
@@ -299,7 +385,25 @@ MULTI_ORGAN_COHORTS: List[Dict[str, Any]] = [
         "available_phases": ["CT"]
     },
 
-    # ── BREAST DCE-MRI (Yunnan & DUKE) ──
+    # ── BREAST DCE-MRI (MAMA-MIA, Yunnan & DUKE) ──
+    {
+        "case_id": "ispy2_353318",
+        "name": "I-SPY 2 Breast DCE-MRI (#353318)",
+        "organ": "breast",
+        "modality": "3d_mri",
+        "pathology": "Primary Invasive Breast Carcinoma (BI-RADS 5)",
+        "image_path": "/workspace/mama_mia_dataset2/MAMA-MIA/images/ISPY2_353318/ISPY2_353318_0001.nii",
+        "secondary_path": "/workspace/mama_mia_dataset2/MAMA-MIA/images/ISPY2_353318/ISPY2_353318_0000.nii",
+        "mask_path": "/workspace/mama_mia_dataset2/MAMA-MIA/segmentations/expert/ISPY2_353318.nii",
+        "shape_xyz": [256, 256, 64],
+        "n_slices": 64,
+        "initial_slice": 34,
+        "has_gt": True,
+        "dataset": "MAMA-MIA DCE-MRI",
+        "benchmark_dice": 0.9528,
+        "tumor_volume_ml": 16.63,
+        "available_phases": ["PRE", "POST1", "SUB"]
+    },
     {
         "case_id": "yunnan_19",
         "name": "Clinical Case #19 (Yunnan DCE-MRI)",
@@ -610,16 +714,18 @@ def index(request: Request):
 @app.get("/cases/{case_id}", response_class=HTMLResponse)
 def load_case_stage(request: Request, case_id: str):
     case = get_case_meta(case_id)
+    cohort_cases = get_cohort_cases()
     if request.headers.get("hx-request"):
         return templates.TemplateResponse(request=request, name="case_stage.html", context={
             "request": request,
             "case": case,
+            "cases": cohort_cases,
+            "active_case": case,
             "model_type": "cice_beatnet"
         })
-    cases = get_cohort_cases()
     return templates.TemplateResponse(request=request, name="base.html", context={
         "request": request,
-        "cases": cases,
+        "cases": cohort_cases,
         "case": case,
         "active_case": case,
         "version": "6.0"
@@ -734,10 +840,10 @@ def get_slice_image(
 def trigger_scan(request: Request, case_id: str, model_type: str = Form("cice_beatnet")):
     case = get_case_meta(case_id)
     model_labels = {
-        "cice_beatnet": "BEATNet CICE (Multi-Organ 3D Foundation Model)",
+        "cice_beatnet": "BEATNet CICE (Multi-Organ 3D Foundation UNet)",
         "legacy_beatnet": "BEATNet Original (FlexibleUNet Baseline)",
-        "qwen_nuclear_vlm": "Qwen3.5 Multimodal VLM + MedSAM-2",
-        "dual_consensus": "Dual-Model Consensus (Ensemble)"
+        "qwen_nuclear_vlm": "Qwen3.5 Multimodal VLM [Under Construction - Disabled]",
+        "dual_consensus": "Dual-Model Consensus [Under Construction - Disabled]"
     }
     model_name = model_labels.get(model_type, "BEATNet CICE")
     return templates.TemplateResponse(request=request, name="scanning_hud.html", context={
@@ -762,6 +868,13 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
             sec_vol = nib.load(case["secondary_path"]).get_fdata().astype(np.float32)
             if sec_vol.ndim == 4:
                 sec_vol = sec_vol[..., 0]
+        except Exception:
+            pass
+    elif Path(case.get("image_path", "")).exists():
+        try:
+            raw_nii = nib.load(case["image_path"]).get_fdata().astype(np.float32)
+            if raw_nii.ndim == 4 and raw_nii.shape[-1] > 1:
+                sec_vol = raw_nii[..., 1]
         except Exception:
             pass
 
@@ -831,9 +944,8 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
         "birads_category": inf_result["birads_category"],
         "diagnostic_pathology": inf_result["diagnostic_pathology"],
         "concepts": inf_result["concepts"],
-        "confidence_score": inf_result.get("confidence_score", 0.88),
         "best_slices": {
-            "axial": int((pred_zs[0] + pred_zs[1]) // 2),
+            "axial": int(np.argmax(pred_mask.sum(axis=(0, 1)))) if np.sum(pred_mask > 0) > 0 else int((pred_zs[0] + pred_zs[1]) // 2),
             "coronal": int(case["shape_xyz"][1] // 2),
             "sagittal": int(case["shape_xyz"][0] // 2)
         },
@@ -875,6 +987,8 @@ def scan_status_check(request: Request, case_id: str, model_type: str = "cice_be
     return templates.TemplateResponse(request=request, name="diagnostic_dossier.html", context={
         "request": request,
         "case": case,
+        "cases": get_cohort_cases(),
+        "active_case": case,
         "reasoning": reasoning,
         "metrics": metrics_data
     })
